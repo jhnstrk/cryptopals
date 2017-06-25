@@ -1,5 +1,7 @@
 #include "testSet1.h"
 
+#include <utils.h>
+
 #include <QByteArray>
 #include <QDebug>
 #include "test.h"
@@ -35,5 +37,31 @@ void TestSet1::knownHexBase64()
     QByteArray actual = binary.toBase64();
 
     QCOMPARE(actual, base64);
+}
+
+void TestSet1::testXor_data()
+{
+    QTest::addColumn<QByteArray>("plain");
+    QTest::addColumn<QByteArray>("xorcode");
+    QTest::addColumn<QByteArray>("expected");
+
+    // Set 1 Challenge 1
+    QTest::newRow("Challenge1")
+        << QByteArray("1c0111001f010100061a024b53535009181c")
+        <<  QByteArray("686974207468652062756c6c277320657965")
+         << QByteArray("746865206b696420646f6e277420706c6179");
+}
+void TestSet1::testXor()
+{
+    QFETCH( QByteArray, plain);
+    QFETCH( QByteArray, xorcode);
+    QFETCH( QByteArray, expected);
+
+    const QByteArray binary = QByteArray::fromHex(plain);
+    const QByteArray xorcodeBin = QByteArray::fromHex(xorcode);
+
+    const QByteArray actual = qossl::xorByteArray(binary,xorcodeBin);
+
+    QCOMPARE(actual.toHex(), expected);
 }
 
