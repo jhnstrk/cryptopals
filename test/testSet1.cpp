@@ -45,8 +45,8 @@ void TestSet1::testXor_data()
     QTest::addColumn<QByteArray>("xorcode");
     QTest::addColumn<QByteArray>("expected");
 
-    // Set 1 Challenge 1
-    QTest::newRow("Challenge1")
+    // Set 1 Challenge 2
+    QTest::newRow("Challenge2")
         << QByteArray("1c0111001f010100061a024b53535009181c")
         <<  QByteArray("686974207468652062756c6c277320657965")
          << QByteArray("746865206b696420646f6e277420706c6179");
@@ -128,11 +128,34 @@ void TestSet1::testXorCrack2()
             maxScoreOverall= score;
             bestPlainOverall = bestPlain;
             bestLine = line;
-                    qDebug() << line << score << cipherTextHex;
         }
     }
 
     file.close();
 
     qDebug() << maxScoreOverall << bestPlainOverall << bestLine;
+}
+
+void TestSet1::testRepeatingXor_data()
+{
+    QTest::addColumn<QByteArray>("plain");
+    QTest::addColumn<QByteArray>("xorcode");
+    QTest::addColumn<QByteArray>("expected");
+
+    // Set 1 Challenge 5
+    QTest::newRow("Challenge5")
+        << QByteArray("Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal")
+        <<  QByteArray("ICE")
+         << QByteArray("0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272"
+                       "a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f");
+}
+void TestSet1::testRepeatingXor()
+{
+    QFETCH( QByteArray, plain);
+    QFETCH( QByteArray, xorcode);
+    QFETCH( QByteArray, expected);
+
+    const QByteArray actual = qossl::xorByteArray(plain,xorcode);
+
+    QCOMPARE(actual.toHex(), expected);
 }

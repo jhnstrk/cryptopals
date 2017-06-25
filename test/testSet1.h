@@ -23,4 +23,9 @@ private slots:
 
     // Challenge 4: Find encrypted string.
     void testXorCrack2();
+
+    // Challenge 5: Repeating key xor.
+    void testRepeatingXor_data();
+    void testRepeatingXor();
+
 };
