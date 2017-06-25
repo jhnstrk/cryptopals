@@ -17,4 +17,7 @@ private slots:
     //Challenge 2: XOR
     void testXor_data();
     void testXor();
+
+    //Challenge 3: Crack single-char xor.
+    void testXorCrack();
 };

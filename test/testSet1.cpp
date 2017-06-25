@@ -65,3 +65,25 @@ void TestSet1::testXor()
     QCOMPARE(actual.toHex(), expected);
 }
 
+
+void TestSet1::testXorCrack()
+{
+    const QByteArray cipherText = QByteArray::fromHex("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+
+    QByteArray bestPlain;
+    double maxScore = 0;
+    int cipherChar = -1;
+    for (int i=0; i<256; ++i) {
+        QByteArray xorcodeBin(1,static_cast<char>(i));
+        const QByteArray testPlain = qossl::xorByteArray(cipherText,xorcodeBin);
+        double score = qossl::scoreEnglishText(testPlain);
+        if (score > maxScore) {
+            maxScore = score;
+            bestPlain = testPlain;
+            cipherChar = i;
+        }
+    }
+
+    qDebug() << maxScore << cipherChar << bestPlain;
+}
+
