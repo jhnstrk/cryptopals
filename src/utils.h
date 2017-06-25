@@ -9,4 +9,13 @@ namespace qossl {
     // A simple score for plain ASCII English text.
     // higher is better, range is 0 to 1.
     double scoreEnglishText(const QByteArray & src);
+
+    // Input must be same length
+    unsigned int hammingDistance(const QByteArray & s1, const QByteArray & s2);
+
+    //! Return the number of bits set in the given char.
+    unsigned int countBitsSet(unsigned char c);
+
+    //! Sub-sample byte array.
+    QByteArray subsample(const QByteArray & src, int start, int stride);
 }

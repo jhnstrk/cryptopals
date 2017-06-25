@@ -6,6 +6,8 @@
 #include <QDebug>
 #include "test.h"
 
+#include <algorithm>
+
 JDS_ADD_TEST(TestSet1)
 
 void TestSet1::initTestCase()
@@ -134,6 +136,7 @@ void TestSet1::testXorCrack2()
     file.close();
 
     qDebug() << maxScoreOverall << bestPlainOverall << bestLine;
+    QCOMPARE(bestPlainOverall, QByteArray("Now that the party is jumping\n"));
 }
 
 void TestSet1::testRepeatingXor_data()
@@ -158,4 +161,118 @@ void TestSet1::testRepeatingXor()
     const QByteArray actual = qossl::xorByteArray(plain,xorcode);
 
     QCOMPARE(actual.toHex(), expected);
+}
+
+void TestSet1::testHammingDistance_data()
+{
+    QTest::addColumn<QByteArray>("lhs");
+    QTest::addColumn<QByteArray>("rhs");
+    QTest::addColumn<int>("expected");
+
+    QTest::newRow("Sample")
+        << QByteArray("this is a test")
+        << QByteArray("wokka wokka!!!")
+         << 37;
+
+    QTest::newRow("Sample (L <--> R)")
+        << QByteArray("wokka wokka!!!")
+        << QByteArray("this is a test")
+         << 37;
+
+    QTest::newRow("Equal")
+        << QByteArray("123456")
+        << QByteArray("123456")
+        << 0;
+
+    QTest::newRow("Mismatch")
+        << QByteArray::fromHex("0000000000000000")
+        << QByteArray::fromHex("FFFFFFFFFFFFFFFF")
+        << (16*4);
+}
+
+void TestSet1::testHammingDistance()
+{
+    const QFETCH( QByteArray, lhs);
+    const QFETCH( QByteArray, rhs);
+    const QFETCH( int, expected);
+
+    const int actual = qossl::hammingDistance(lhs,rhs);
+    QCOMPARE( actual, expected);
+}
+
+
+namespace {
+    struct KeyScore {
+        KeyScore( double s, int size) :
+            score(s), keySize(size)
+        {}
+
+        double score;
+        int keySize;
+    };
+
+    bool lessThanKeyScore( const KeyScore & lhs, const KeyScore & rhs) {
+        return lhs.score < rhs.score;
+    }
+}
+
+void TestSet1::testBreakRepeatingXor()
+{
+    QFile file(":/qossl_test_resources/rsc/set1/6.txt");
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray cipherText = QByteArray::fromBase64(file.readAll());
+    file.close();
+    QVERIFY(!cipherText.isEmpty());
+    
+    QList <KeyScore> keyResults;
+
+    const int keySizeMax = 40;
+    for (int keySize = 2; keySize < keySizeMax; ++keySize) {
+        double scoreTotal = 0;
+        int nblock = cipherText.size() / (2*keySize);
+
+        for (int iblock = 0; iblock < nblock; ++iblock) {
+            const QByteArray b1 = cipherText.mid(2*iblock*keySize,keySize);   // First block
+            const QByteArray b2 = cipherText.mid(2*iblock*keySize + keySize, keySize); // second block
+
+            scoreTotal += qossl::hammingDistance(b1,b2);
+        }
+
+        // Normalized score
+        const double score = scoreTotal /
+                (static_cast<double>(keySize) * nblock);
+        keyResults.push_back(KeyScore(score, keySize));
+    }
+
+    std::stable_sort(keyResults.begin(), keyResults.end(), lessThanKeyScore);
+
+    QByteArray recoveredKey;
+
+    for (int i=0; i<1; ++i) {
+        const KeyScore & item(keyResults.at(i));
+        qDebug() << i << item.keySize << item.score;
+
+        const int keySize = item.keySize;
+        QByteArray derivedKey(keySize, '\0');
+
+        double totalScore = 0;
+        for (int k=0;k<keySize; ++k){
+            const QByteArray subsampled = qossl::subsample(cipherText, k, keySize);
+            QByteArray bestPlain;
+            int cipherChar = 0;
+            totalScore += findBestXorChar(subsampled, bestPlain, cipherChar);
+            derivedKey[k] = static_cast<char>(cipherChar);
+        }
+
+        //qDebug() << derivedKey << totalScore / keySize;
+
+        if (i==0) {
+            QByteArray recoveredPlainText = qossl::xorByteArray(cipherText,derivedKey);
+            //qDebug() << recoveredPlainText;
+            recoveredKey = derivedKey;
+        }
+    }
+
+    QCOMPARE(recoveredKey, QByteArray("Terminator X: Bring the noise"));
+
 }

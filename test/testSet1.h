@@ -28,4 +28,9 @@ private slots:
     void testRepeatingXor_data();
     void testRepeatingXor();
 
+    // Challenge 6: Breaking repeating xor
+    void testHammingDistance_data();
+    void testHammingDistance();
+    
+    void testBreakRepeatingXor();
 };

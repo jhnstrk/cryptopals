@@ -5,6 +5,8 @@
 
 #include <QDebug>
 
+#include <limits>
+
 namespace qossl {
 
 QByteArray xorByteArray(const QByteArray & src, const QByteArray & key)
@@ -62,4 +64,53 @@ double scoreEnglishText(const QByteArray &src)
     return result / static_cast<double>(src.size());
 }
 
+unsigned int countBitsSet( unsigned char c1 )
+{
+    // More efficient methods exist.
+    // https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetKernighan
+
+    unsigned int v = c1;
+    unsigned int c = 0;
+    for (; v; v >>= 1)
+    {
+      c += v & 1;
+    }
+    return c;
+}
+
+unsigned int hammingDistance(const QByteArray &s1, const QByteArray &s2)
+{
+    // This could be more efficient by working in blocks or 4 or 8 bytes.
+    if (s1.size() != s2.size()) {
+        qCritical() << "Size mismatch";
+        return std::numeric_limits<size_t>::max();
+    }
+
+    unsigned int result = 0;
+    const int len = s1.size();
+    for (int i=0; i<len; ++i) {
+        const unsigned char c1= static_cast<unsigned char>(s1.at(i));
+        const unsigned char c2= static_cast<unsigned char>(s2.at(i));
+
+        const unsigned char mismatch = c1 ^ c2;
+        result += countBitsSet(mismatch);
+    }
+    return result;
+}
+
+QByteArray subsample(const QByteArray &src, int start, int stride)
+{
+    QByteArray ret;
+    if (start >= src.size()) {
+        return ret;
+    }
+
+    const int len = (src.size() - start) / stride;
+
+    ret.resize(len);
+    for (int i=0; i<len; ++i) {
+        ret[i] = src.at(start + (i*stride));
+    }
+    return ret;
+}
 }
