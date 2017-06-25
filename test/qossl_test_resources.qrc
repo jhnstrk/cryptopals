@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/qossl_test_resources">
+        <file>rsc/set1/4.txt</file>
+    </qresource>
+</RCC>

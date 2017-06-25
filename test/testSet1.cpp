@@ -65,25 +65,74 @@ void TestSet1::testXor()
     QCOMPARE(actual.toHex(), expected);
 }
 
-
+namespace {
+    double findBestXorChar(const QByteArray & cipherText, QByteArray & bestPlain, int & bestCipherChar) {
+        double maxScore = 0;
+        int cipherChar = -1;
+        for (int i=0; i<256; ++i) {
+            QByteArray xorcodeBin(1,static_cast<char>(i));
+            const QByteArray testPlain = qossl::xorByteArray(cipherText,xorcodeBin);
+            const double score = qossl::scoreEnglishText(testPlain);
+            if (score > maxScore) {
+                maxScore = score;
+                bestPlain = testPlain;
+                cipherChar = i;
+            }
+        }
+        bestCipherChar = cipherChar;
+        return maxScore;
+    }
+}
 void TestSet1::testXorCrack()
 {
     const QByteArray cipherText = QByteArray::fromHex("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
-
     QByteArray bestPlain;
-    double maxScore = 0;
+
     int cipherChar = -1;
-    for (int i=0; i<256; ++i) {
-        QByteArray xorcodeBin(1,static_cast<char>(i));
-        const QByteArray testPlain = qossl::xorByteArray(cipherText,xorcodeBin);
-        double score = qossl::scoreEnglishText(testPlain);
-        if (score > maxScore) {
-            maxScore = score;
-            bestPlain = testPlain;
-            cipherChar = i;
+    double maxScore = findBestXorChar(cipherText, bestPlain, cipherChar);
+
+    qDebug() << maxScore << cipherChar << bestPlain;
+    QCOMPARE(cipherChar, 88);
+}
+
+
+void TestSet1::testXorCrack2()
+{
+    QFile file(":/qossl_test_resources/rsc/set1/4.txt");
+    QVERIFY(file.open(QIODevice::ReadOnly));
+
+    QByteArray bestPlainOverall;
+    double maxScoreOverall = 0;
+    int line = 0;
+    int bestLine = -1;
+    while(true) {
+        ++line;
+        const QByteArray cipherTextHex = file.readLine();
+        if (cipherTextHex.isEmpty()) {
+            if (file.atEnd() || !file.isReadable()) {
+                break;
+            } else {
+                continue;
+            }
+        }
+
+        const QByteArray cipherText = QByteArray::fromHex(cipherTextHex.trimmed());
+
+        QByteArray bestPlain;
+        int cipherChar = -1;
+        double score = findBestXorChar(cipherText, bestPlain, cipherChar);
+
+        QVERIFY(score <= 1);
+
+        if (score > maxScoreOverall) {
+            maxScoreOverall= score;
+            bestPlainOverall = bestPlain;
+            bestLine = line;
+                    qDebug() << line << score << cipherTextHex;
         }
     }
 
-    qDebug() << maxScore << cipherChar << bestPlain;
-}
+    file.close();
 
+    qDebug() << maxScoreOverall << bestPlainOverall << bestLine;
+}

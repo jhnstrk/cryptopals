@@ -20,12 +20,19 @@ set( ${PROJECT_NAME}_SOURCES
   test.cpp
   )
 
+set( ${PROJECT_NAME}_RESOURCES
+  qossl_test_resources.qrc
+  )
 
 qt5_wrap_cpp(${PROJECT_NAME}_SOURCES_MOC ${${PROJECT_NAME}_HEADERS_MOC})
+qt5_add_resources(${PROJECT_NAME}_SOURCES_QRC ${${PROJECT_NAME}_RESOURCES})
+
+set (${PROJECT_NAME}_RESOURCES qossl_test_resources.qrc)
 
 add_executable(${PROJECT_NAME}
   ${${PROJECT_NAME}_SOURCES}
   ${${PROJECT_NAME}_SOURCES_MOC}
+  ${${PROJECT_NAME}_SOURCES_QRC}
   ${${PROJECT_NAME}_HEADERS}
   )
 

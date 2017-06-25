@@ -20,4 +20,7 @@ private slots:
 
     //Challenge 3: Crack single-char xor.
     void testXorCrack();
+
+    // Challenge 4: Find encrypted string.
+    void testXorCrack2();
 };
