@@ -21,4 +21,7 @@ namespace qossl {
 
     //! AES-128 ECB decryption
     QByteArray aesEcbDecrypt(const QByteArray & cipherText, const QByteArray & key);
+
+    //! Pad data.
+    QByteArray pkcs7Pad(const QByteArray & data, const int blocksize);
 }

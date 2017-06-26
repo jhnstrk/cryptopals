@@ -152,4 +152,28 @@ QByteArray aesEcbDecrypt(const QByteArray &cipherText, const QByteArray &key)
     }
     return out;
 }
+
+QByteArray pkcs7Pad(const QByteArray &data, const int blocksize)
+{
+    const int lastblock = (data.size() / blocksize) * blocksize;
+
+    if (lastblock == data.size()) {
+        // data is a multiple of the padding size
+        return data;
+    }
+
+    const int n =  blocksize + lastblock - data.size();
+    if (n > 255) {
+        qWarning() << "PKCS7 overflow";
+    }
+
+    QByteArray ret;
+    ret.reserve(lastblock + blocksize);
+    ret += data;
+    for (int i=0; i<n; ++i) {
+        ret.append(static_cast<char>(n));
+    }
+    return ret;
+}
+
 }
