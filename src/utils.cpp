@@ -1,5 +1,8 @@
 #include "utils.h"
 
+#include <openssl/bio.h>
+#include <openssl/aes.h>
+
 #include <QByteArray>
 #include <QVector>
 
@@ -112,5 +115,41 @@ QByteArray subsample(const QByteArray &src, int start, int stride)
         ret[i] = src.at(start + (i*stride));
     }
     return ret;
+}
+
+
+QByteArray aesEcbDecrypt(const QByteArray &cipherText, const QByteArray &key)
+{
+    const int AesBlockSize = 16;
+
+    AES_KEY dec_key;
+    ::memset( &dec_key, 0, sizeof(dec_key));
+    int status = AES_set_decrypt_key(reinterpret_cast<const unsigned char *>(key.constData()),
+            key.size() * 8, &dec_key);
+    if (status != 0){
+        qWarning() << "Status"<< status;
+        return QByteArray();
+    }
+
+    QByteArray out;
+    int nblock = (cipherText.size()) / AesBlockSize;
+    out.resize(nblock * AesBlockSize);
+
+    if (cipherText.size() > nblock*AesBlockSize) {
+        qWarning() << "Cipher text is not a multiple of the cipher block size.";
+        --nblock;
+    }
+
+    const unsigned char * pIn = reinterpret_cast<const unsigned char*>(cipherText.constData());
+    unsigned char *pOut = reinterpret_cast<unsigned char*>(out.data());
+
+    for (int i=0; i<nblock; ++i) {
+        AES_ecb_encrypt(
+            pIn + i*AesBlockSize,
+            pOut + i*AesBlockSize,
+            &dec_key,
+            AES_DECRYPT);
+    }
+    return out;
 }
 }

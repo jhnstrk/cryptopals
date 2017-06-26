@@ -18,4 +18,7 @@ namespace qossl {
 
     //! Sub-sample byte array.
     QByteArray subsample(const QByteArray & src, int start, int stride);
+
+    //! AES-128 ECB decryption
+    QByteArray aesEcbDecrypt(const QByteArray & cipherText, const QByteArray & key);
 }

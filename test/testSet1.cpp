@@ -276,3 +276,62 @@ void TestSet1::testBreakRepeatingXor()
     QCOMPARE(recoveredKey, QByteArray("Terminator X: Bring the noise"));
 
 }
+
+void TestSet1::testAesEcb()
+{
+    QFile file(":/qossl_test_resources/rsc/set1/7.txt");
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray cipherText = QByteArray::fromBase64(file.readAll());
+    file.close();
+    QVERIFY(!cipherText.isEmpty());
+
+    const QByteArray key("YELLOW SUBMARINE");
+
+    QByteArray plain = qossl::aesEcbDecrypt(cipherText, key);
+
+    QVERIFY(plain.startsWith("I'm back and I'm ringin' the bell \nA rockin' on"));
+    QVERIFY(plain.endsWith("Play that funky music \n\x04\x04\x04\x04"));
+}
+
+void TestSet1::testDetectAesEcb()
+{
+    const int AesBlockSize = 16;
+    QFile file(":/qossl_test_resources/rsc/set1/8.txt");
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    int iLine = 0;
+
+    int bestdupCount = 0;
+    int bestLine = -1;
+    QByteArray bestCipher;
+
+    while(file.isReadable() && !file.atEnd()) {
+        ++iLine;
+        // Read a sample
+        const QByteArray cipherText = QByteArray::fromHex(file.readLine());
+
+        if (cipherText.isEmpty()) {
+            QVERIFY(iLine > 1);
+            break;
+        }
+        QHash<QByteArray, int> histo;
+
+        // Break into 16 byte chunks and make a histogram.
+        for (int i=0; i<cipherText.size() - AesBlockSize + 1; i+=AesBlockSize) {
+            const QByteArray chunk = cipherText.mid(i,AesBlockSize);
+            histo[chunk]++;
+        }
+
+        // If many of the blocks appear more than once, that's suspicious.
+        const int dupCount = (cipherText.size() / AesBlockSize) - histo.size();
+        if (dupCount > bestdupCount) {
+            bestdupCount = dupCount;
+            bestLine = iLine;
+            bestCipher = cipherText;
+        }
+    }
+
+    file.close();
+
+    QCOMPARE(bestLine, 133);
+    QVERIFY(bestCipher.toHex().startsWith("d880619740a8a19b7840a8a31c810a3d"));
+}

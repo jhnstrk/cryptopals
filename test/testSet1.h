@@ -31,6 +31,11 @@ private slots:
     // Challenge 6: Breaking repeating xor
     void testHammingDistance_data();
     void testHammingDistance();
-    
     void testBreakRepeatingXor();
+
+    // Challenge 7: Aes ECB
+    void testAesEcb();
+
+    // Challenge 8: Aes ECB
+    void testDetectAesEcb();
 };
