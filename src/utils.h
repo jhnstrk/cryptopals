@@ -29,4 +29,11 @@ namespace qossl {
 
     //! Pad data.
     QByteArray pkcs7Pad(const QByteArray & data, const int blocksize);
+    QByteArray pkcs7Unpad(const QByteArray & data, const int blocksize = -1);
+
+    //! AES CBC
+    //! Inputs must be a multiple of the AES block size.
+    QByteArray aesCbcDecrypt(const QByteArray & cipherText, const QByteArray & key, const QByteArray & iv);
+    QByteArray aesCbcEncrypt(const QByteArray & plainText, const QByteArray & key, const QByteArray & iv);
+
 }

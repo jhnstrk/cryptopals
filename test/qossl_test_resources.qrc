@@ -1,8 +1,9 @@
-<!DOCTYPE RCC><RCC version="1.0">
-<qresource prefix="/qossl_test_resources">
-    <file>rsc/set1/4.txt</file>
-    <file>rsc/set1/6.txt</file>
-    <file>rsc/set1/7.txt</file>
-    <file>rsc/set1/8.txt</file>
-</qresource>
+<RCC>
+    <qresource prefix="/qossl_test_resources">
+        <file>rsc/set1/4.txt</file>
+        <file>rsc/set1/6.txt</file>
+        <file>rsc/set1/7.txt</file>
+        <file>rsc/set1/8.txt</file>
+        <file>rsc/set2/10.txt</file>
+    </qresource>
 </RCC>

@@ -34,7 +34,7 @@ void TestSet2::testPkcs7Pad_data()
     QTest::newRow("short")
         << QByteArray("1") << 5 << QByteArray("1\x04\x04\x04\x04");
     QTest::newRow("no pad char")
-        << QByteArray("YELLOW SUBMARINE") << 16 << QByteArray("YELLOW SUBMARINE");
+        << QByteArray("YELLOW SUBMARINE") << 16 << QByteArray("YELLOW SUBMARINE").append(QByteArray(16,16));
     QTest::newRow("empty")
         << QByteArray("") << 16 << QByteArray("");
     QTest::newRow("2 blocks")
@@ -52,24 +52,68 @@ void TestSet2::testPkcs7Pad()
     QCOMPARE(actual, padded);
 }
 
-void TestSet2::testAesEcbEncrypt_data()
+void TestSet2::testAesCbcDecrypt_data()
 {
     QTest::addColumn<QByteArray>("data");
     QTest::addColumn<QByteArray>("key");
+    QTest::addColumn<QByteArray>("iv");
+    QTest::addColumn<QByteArray>("startsWith");
+    QTest::addColumn<QByteArray>("endsWith");
+
+    QFile file(":/qossl_test_resources/rsc/set2/10.txt");
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray cipherText = QByteArray::fromBase64(file.readAll());
+    file.close();
+
+    QTest::newRow("Challenge10") << cipherText
+                                 << QByteArray("YELLOW SUBMARINE")
+                                 << QByteArray(qossl::AesBlockSize,(char)0)
+                                 << QByteArray("I'm back and I'm ringin' the bell \nA rockin' on")
+                                 << QByteArray("Come on \nPlay that funky music \n");
+}
+
+void TestSet2::testAesCbcDecrypt()
+{
+    const QFETCH(QByteArray, data);
+    const QFETCH(QByteArray, key);
+    const QFETCH(QByteArray, iv);
+    const QFETCH(QByteArray, startsWith);
+    const QFETCH(QByteArray, endsWith);
+
+    const QByteArray plainText = qossl::pkcs7Unpad( qossl::aesCbcDecrypt(data,key,iv) );
+
+    QVERIFY(plainText.startsWith(startsWith));
+    QVERIFY(plainText.endsWith(endsWith));
+}
+
+void TestSet2::testAesCbcEncrypt_data()
+{
+    QTest::addColumn<QByteArray>("data");
+    QTest::addColumn<QByteArray>("key");
+    QTest::addColumn<QByteArray>("iv");
 
     QTest::newRow("Simple")
         << QByteArray("xygxygyxgxygxygvxygxygyxgxygxygvxygxygyxgxygxygv")
-        << QByteArray("YELLOW SUBMARINE");
+        << QByteArray("YELLOW SUBMARINE")
+        << QByteArray(qossl::AesBlockSize,(char)0);
+
+    QTest::newRow("2")
+        << QByteArray("blah blah blah blah blah blah blah")
+        << QByteArray("YELLOW SUBMARINE")
+        << QByteArray("1234567891234567");
 }
 
-void TestSet2::testAesEcbEncrypt()
+void TestSet2::testAesCbcEncrypt()
 {
     const QFETCH( QByteArray, data);
     const QFETCH( QByteArray, key);
+    const QFETCH( QByteArray, iv);
 
-    const QByteArray cipherText = qossl::aesEcbEncrypt(data,key);
-    const QByteArray plainText = qossl::aesEcbDecrypt(cipherText,key);
+    const QByteArray paddedPlain = qossl::pkcs7Pad(data, qossl::AesBlockSize);
+    const QByteArray cipherText = qossl::aesCbcEncrypt(paddedPlain,key,iv);
+    const QByteArray paddedPlain2 = qossl::aesCbcDecrypt(cipherText,key,iv);
+    const QByteArray plain = qossl::pkcs7Unpad(paddedPlain2,qossl::AesBlockSize);
 
     // Decrypting should recover data.
-    QCOMPARE(plainText, data);
+    QCOMPARE(plain, data);
 }

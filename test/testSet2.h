@@ -15,6 +15,9 @@ private slots:
     void testPkcs7Pad();
 
     // Challenge 2: AES CBC
-    void testAesEcbEncrypt_data();
-    void testAesEcbEncrypt();
+    void testAesCbcDecrypt_data();
+    void testAesCbcDecrypt();
+
+    void testAesCbcEncrypt_data();
+    void testAesCbcEncrypt();
 };

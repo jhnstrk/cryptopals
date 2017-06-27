@@ -186,18 +186,20 @@ QByteArray aesEcbEncrypt(const QByteArray &paddedPlainText, const QByteArray &ke
 
 QByteArray pkcs7Pad(const QByteArray &data, const int blocksize)
 {
+    if (data.isEmpty()) {
+        return data; // Not sure what the spec is here; Add a block?
+    }
     const int lastblock = (data.size() / blocksize) * blocksize;
 
-    if (lastblock == data.size()) {
-        // data is a multiple of the padding size
-        return data;
-    }
-
-    const int n =  blocksize + lastblock - data.size();
+    int n =  blocksize + lastblock - data.size();
     if (n > 255) {
         qWarning() << "PKCS7 overflow";
     }
 
+    if (n == 0) {
+        // data is a multiple of the padding size, we must add a complete block.
+        n = blocksize;
+    }
     QByteArray ret;
     ret.reserve(lastblock + blocksize);
     ret += data;
@@ -207,4 +209,92 @@ QByteArray pkcs7Pad(const QByteArray &data, const int blocksize)
     return ret;
 }
 
+QByteArray pkcs7Unpad(const QByteArray &data, const int blocksize)
+{
+    if (data.isEmpty()) {
+        return data;
+    }
+
+    const int lastVal = data.at(data.size() -1);
+
+    if (lastVal > data.size()) {
+        qCritical() << "Bad padding (Implied padding > data size)";
+        return data;
+    }
+
+    if (blocksize != -1) {
+        if (lastVal > blocksize) {
+            qWarning() << "Bad padding (Implied padding > block size)";
+        }
+    }
+
+    for (int i=data.size() -lastVal; i<data.size(); ++i) {
+        if (data.at(i) != lastVal) {
+            qWarning() << "Bad padding (Inconstistent last bytes)";
+            return data;
+        }
+    }
+
+    return data.mid(0, data.size() - lastVal);
+}
+
+QByteArray aesCbcDecrypt(const QByteArray &cipherText, const QByteArray &key, const QByteArray &iv)
+{
+    if (iv.size() != AesBlockSize) {
+        qCritical() << "Bad I.V. size";
+        return QByteArray();
+    }
+
+    if (key.size() != AesBlockSize) {
+        qCritical() << "Bad key size";
+        return QByteArray();
+    }
+
+    if (cipherText.size() % AesBlockSize != 0) {
+        qWarning() << "Bad cipherText size, must be multiple of block size";
+    }
+    QByteArray plainText;
+    plainText.reserve(cipherText.size());
+
+    QByteArray lastBlock = iv;
+    for (int i=0; i<cipherText.size()+1-AesBlockSize; i+=AesBlockSize) {
+        QByteArray b1 = cipherText.mid(i,AesBlockSize);
+        const QByteArray initBlock = b1;
+        b1 = aesEcbDecrypt(b1, key);
+        b1 = xorByteArray(b1,lastBlock);
+        plainText.append(b1);
+        lastBlock = initBlock;
+    }
+    return plainText;
+}
+
+QByteArray aesCbcEncrypt(const QByteArray &plainText, const QByteArray &key, const QByteArray &iv)
+{
+    if (iv.size() != AesBlockSize) {
+        qCritical() << "Bad I.V. size";
+        return QByteArray();
+    }
+
+    if (key.size() != AesBlockSize) {
+        qCritical() << "Bad key size";
+        return QByteArray();
+    }
+
+    if (plainText.size() % AesBlockSize != 0) {
+        qWarning() << "Bad cipherText size, must be multiple of block size";
+    }
+
+    QByteArray cipherText;
+    cipherText.reserve(plainText.size());
+
+    QByteArray lastBlock = iv;
+    for (int i=0; i<plainText.size()+1-AesBlockSize; i+=AesBlockSize) {
+        QByteArray b1 = plainText.mid(i,AesBlockSize);
+        b1 = xorByteArray(b1,lastBlock);
+        b1 = aesEcbEncrypt(b1, key);
+        cipherText.append(b1);
+        lastBlock = b1;
+    }
+    return cipherText;
+}
 }
