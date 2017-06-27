@@ -51,3 +51,25 @@ void TestSet2::testPkcs7Pad()
 
     QCOMPARE(actual, padded);
 }
+
+void TestSet2::testAesEcbEncrypt_data()
+{
+    QTest::addColumn<QByteArray>("data");
+    QTest::addColumn<QByteArray>("key");
+
+    QTest::newRow("Simple")
+        << QByteArray("xygxygyxgxygxygvxygxygyxgxygxygvxygxygyxgxygxygv")
+        << QByteArray("YELLOW SUBMARINE");
+}
+
+void TestSet2::testAesEcbEncrypt()
+{
+    const QFETCH( QByteArray, data);
+    const QFETCH( QByteArray, key);
+
+    const QByteArray cipherText = qossl::aesEcbEncrypt(data,key);
+    const QByteArray plainText = qossl::aesEcbDecrypt(cipherText,key);
+
+    // Decrypting should recover data.
+    QCOMPARE(plainText, data);
+}

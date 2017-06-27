@@ -120,8 +120,6 @@ QByteArray subsample(const QByteArray &src, int start, int stride)
 
 QByteArray aesEcbDecrypt(const QByteArray &cipherText, const QByteArray &key)
 {
-    const int AesBlockSize = 16;
-
     AES_KEY dec_key;
     ::memset( &dec_key, 0, sizeof(dec_key));
     int status = AES_set_decrypt_key(reinterpret_cast<const unsigned char *>(key.constData()),
@@ -149,6 +147,39 @@ QByteArray aesEcbDecrypt(const QByteArray &cipherText, const QByteArray &key)
             pOut + i*AesBlockSize,
             &dec_key,
             AES_DECRYPT);
+    }
+    return out;
+}
+
+QByteArray aesEcbEncrypt(const QByteArray &paddedPlainText, const QByteArray &key)
+{
+    AES_KEY enc_key;
+    ::memset( &enc_key, 0, sizeof(enc_key));
+    int status = AES_set_encrypt_key(reinterpret_cast<const unsigned char *>(key.constData()),
+            key.size() * 8, &enc_key);
+    if (status != 0){
+        qWarning() << "Status"<< status;
+        return QByteArray();
+    }
+
+    QByteArray out;
+    int nblock = (paddedPlainText.size()) / AesBlockSize;
+    out.resize(nblock * AesBlockSize);
+
+    if (paddedPlainText.size() > nblock*AesBlockSize) {
+        qWarning() << "Plain text is not a multiple of the cipher block size.";
+        --nblock;
+    }
+
+    const unsigned char * pIn = reinterpret_cast<const unsigned char*>(paddedPlainText.constData());
+    unsigned char *pOut = reinterpret_cast<unsigned char*>(out.data());
+
+    for (int i=0; i<nblock; ++i) {
+        AES_ecb_encrypt(
+            pIn + i*AesBlockSize,
+            pOut + i*AesBlockSize,
+            &enc_key,
+            AES_ENCRYPT);
     }
     return out;
 }

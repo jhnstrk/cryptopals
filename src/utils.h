@@ -4,6 +4,8 @@ class QByteArray;
 
 namespace qossl {
 
+    enum { AesBlockSize = 16 };
+
     QByteArray xorByteArray(const QByteArray & src, const QByteArray & key);
 
     // A simple score for plain ASCII English text.
@@ -21,6 +23,9 @@ namespace qossl {
 
     //! AES-128 ECB decryption
     QByteArray aesEcbDecrypt(const QByteArray & cipherText, const QByteArray & key);
+
+    //! AES-128 ECB encryption
+    QByteArray aesEcbEncrypt(const QByteArray & paddedPlainText, const QByteArray & key);
 
     //! Pad data.
     QByteArray pkcs7Pad(const QByteArray & data, const int blocksize);
