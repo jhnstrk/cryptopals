@@ -1,6 +1,7 @@
 #pragma once
 
-class QByteArray;
+#include <QByteArray>
+#include <QHash>
 
 namespace qossl {
 
@@ -36,4 +37,33 @@ namespace qossl {
     QByteArray aesCbcDecrypt(const QByteArray & cipherText, const QByteArray & key, const QByteArray & iv);
     QByteArray aesCbcEncrypt(const QByteArray & plainText, const QByteArray & key, const QByteArray & iv);
 
+    //! Generate len cryptographic random bytes.
+    QByteArray randomBytes(int len);
+    unsigned char   randomUChar();
+
+    QByteArray randomAesKey();
+
+    namespace Aes
+    {
+        enum Method { None, ECB, CBC };
+    }
+
+    namespace Padding {
+        enum Padding { None, Pkcs7 };
+    }
+
+    class EncryptionOracle {
+    public:
+        EncryptionOracle() {}
+        virtual ~EncryptionOracle() {}
+        virtual QByteArray encrypt(const QByteArray & input) = 0;
+    };
+
+    QHash<QByteArray, int> makeBlockHistogram(const QByteArray & data,  int blockSize = AesBlockSize);
+
+    double detectAesEcb(const QByteArray & data);
+
+    Aes::Method estimateAesMethod(const QByteArray & cipherText);
+
+    int detectBlackBoxBlockSize( QByteArray (* pFunc)(const QByteArray& input) );
 }

@@ -1,7 +1,8 @@
 #include "utils.h"
 
-#include <openssl/bio.h>
 #include <openssl/aes.h>
+#include <openssl/bio.h>
+#include <openssl/rand.h>
 
 #include <QByteArray>
 #include <QVector>
@@ -297,4 +298,92 @@ QByteArray aesCbcEncrypt(const QByteArray &plainText, const QByteArray &key, con
     }
     return cipherText;
 }
+
+QByteArray randomBytes(int len)
+{
+    QByteArray ret(len, '\0');
+
+    const int status = RAND_bytes(reinterpret_cast<unsigned char*>(ret.data()), len);
+    if (status != 1) {
+        qWarning() << "Random bytes not available";
+    }
+
+    return ret;
 }
+
+unsigned char randomUChar()
+{
+    unsigned char ret = 0;
+    const int status = RAND_bytes(&ret, 1);
+    if (status != 1) {
+        qWarning() << "Random bytes not available";
+    }
+
+    return ret;
+}
+
+QByteArray randomAesKey(){
+    return randomBytes(AesBlockSize);
+}
+
+//  Challenge 12
+
+QHash<QByteArray, int> makeBlockHistogram(const QByteArray & data,  int blockSize)
+{
+    QHash<QByteArray, int> histo;
+
+    // Break into 16 byte chunks and make a histogram.
+    for (int i=0; i<data.size() - blockSize + 1; i+=blockSize) {
+        const QByteArray chunk = data.mid(i,AesBlockSize);
+        histo[chunk]++;
+    }
+    return histo;
+}
+
+
+double detectAesEcb(const QByteArray &cipherText)
+{
+    const QHash<QByteArray, int> histo = makeBlockHistogram(cipherText);
+
+    // If many of the blocks appear more than once, that's suspicious.
+    const int numBlocks = (cipherText.size() / AesBlockSize);
+    const int dupCount = numBlocks - histo.size();
+    return double (dupCount) / double (numBlocks);
+}
+
+Aes::Method estimateAesMethod(const QByteArray &cipherText) {
+    return (detectAesEcb(cipherText) > 0.00001) ? Aes::ECB : Aes::CBC;
+}
+
+int detectBlackBoxBlockSize( EncryptionOracle & oracle )
+{
+    const int MaxBlock = 8096;  // Arbitrary upper limit.
+    const int sz0 = oracle.encrypt(QByteArray()).size();
+    int i1 = 0;
+    int sz1 = 0;
+    for(int i=0; i<MaxBlock; ++i) {
+        sz1 = oracle.encrypt(QByteArray(i,'A')).size();
+        if (sz1 != sz0) {
+            i1 = i;
+            break;
+        }
+    }
+
+    if (i1 == 0) {
+        qWarning() << "Unable to detect block size";
+        return -1;
+    }
+
+    int sz2 = 0;
+    int i2 = 0;
+    for(int i=i1+1; i<MaxBlock; ++i) {
+        sz2 = oracle.encrypt(QByteArray(i,'A')).size();
+        if (sz2 != sz1) {
+            i2 = i;
+            break;
+        }
+    }
+
+    return sz2 - sz1; // ????
+}
+}   // namespace qossl

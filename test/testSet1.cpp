@@ -295,12 +295,11 @@ void TestSet1::testAesEcb()
 
 void TestSet1::testDetectAesEcb()
 {
-    const int AesBlockSize = 16;
     QFile file(":/qossl_test_resources/rsc/set1/8.txt");
     QVERIFY(file.open(QIODevice::ReadOnly));
     int iLine = 0;
 
-    int bestdupCount = 0;
+    double bestdupCount = 0;
     int bestLine = -1;
     QByteArray bestCipher;
 
@@ -313,16 +312,9 @@ void TestSet1::testDetectAesEcb()
             QVERIFY(iLine > 1);
             break;
         }
-        QHash<QByteArray, int> histo;
-
-        // Break into 16 byte chunks and make a histogram.
-        for (int i=0; i<cipherText.size() - AesBlockSize + 1; i+=AesBlockSize) {
-            const QByteArray chunk = cipherText.mid(i,AesBlockSize);
-            histo[chunk]++;
-        }
 
         // If many of the blocks appear more than once, that's suspicious.
-        const int dupCount = (cipherText.size() / AesBlockSize) - histo.size();
+        const double dupCount = qossl::detectAesEcb(cipherText);
         if (dupCount > bestdupCount) {
             bestdupCount = dupCount;
             bestLine = iLine;

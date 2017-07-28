@@ -117,3 +117,131 @@ void TestSet2::testAesCbcEncrypt()
     // Decrypting should recover data.
     QCOMPARE(plain, data);
 }
+
+class EncryptionOracleC11 : public qossl::EncryptionOracle {
+public:
+    EncryptionOracleC11(): m_method(qossl::Aes::None)
+    {}
+    virtual ~EncryptionOracleC11() {}
+
+    QByteArray encrypt(const QByteArray & input) Q_DECL_OVERRIDE {
+        using namespace qossl;
+
+        m_key = randomAesKey();
+        m_method = (randomUChar() & 1) ? Aes::CBC : Aes::ECB;
+
+        const int lPad = (randomUChar() % 5) + 5;
+        const int rPad = (randomUChar() % 5) + 5;
+
+        // Start and end padding
+        QByteArray padPlain = randomBytes(lPad) + input + randomBytes(rPad);
+
+        padPlain = pkcs7Pad(padPlain, AesBlockSize);
+
+        QByteArray ret;
+
+        switch( this->m_method ) {
+        case Aes::CBC:
+            m_iv = randomBytes(AesBlockSize);
+            ret = aesCbcEncrypt(padPlain, m_key, m_iv);
+            break;
+        case Aes::ECB:
+            ret = aesEcbEncrypt(padPlain,m_key);
+            break;
+        default:
+            qWarning() << "Invalid method";
+            ret = padPlain;
+            break;
+        }
+
+        return ret;
+    }
+
+    qossl::Aes::Method getMethod() const { return m_method; }
+    QByteArray getKey() const { return m_key; }
+    QByteArray getIv() const  { return m_iv; }
+private:
+    qossl::Aes::Method m_method;  // CBC / ECB
+    QByteArray m_key, m_iv;
+};
+
+void TestSet2::testEncryptionOracle_data()
+{
+    QTest::addColumn<QByteArray>("data");
+
+    QTest::newRow("1") << QByteArray("xygxygyxgxygxygvxygxygyxgxygxygvxygxygyxgxygxygv").repeated(20);
+    QTest::newRow("2") << QByteArray("blah blah blah blah blah blah blah").repeated(20);
+}
+
+void TestSet2::testEncryptionOracle()
+{
+    const QFETCH( QByteArray, data);
+
+    for (int i=0;i<3;++i) {
+        using namespace qossl;
+        EncryptionOracleC11 oracle;
+        const QByteArray enc = oracle.encrypt(data);
+        QByteArray plain;
+        if (oracle.getMethod() == Aes::CBC) {
+            plain = aesCbcDecrypt(enc, oracle.getKey(), oracle.getIv());
+        } else if (oracle.getMethod() == Aes::ECB) {
+            plain = aesEcbDecrypt(enc,oracle.getKey());
+        } else {
+            QFAIL("Bad enc");
+        }
+        QVERIFY(plain.contains(data));
+
+        QCOMPARE(estimateAesMethod(enc), oracle.getMethod());
+
+        qDebug() << oracle.getMethod();
+    }
+}
+
+class EncryptionOracleC12 : public qossl::EncryptionOracle {
+public:
+    EncryptionOracleC12(): m_method(qossl::Aes::None)
+    {}
+    virtual ~EncryptionOracleC12() {}
+
+    QByteArray encrypt(const QByteArray & input) Q_DECL_OVERRIDE;
+
+    qossl::Aes::Method getMethod() const { return m_method; }
+    QByteArray getKey() const { return m_key; }
+    void setKey(const QByteArray & key) { m_key = key; }
+    QByteArray getIv() const { return m_iv; }
+private:
+    qossl::Aes::Method m_method;  // CBC / ECB
+    QByteArray m_key, m_iv;
+};
+
+QByteArray EncryptionOracleC12::encrypt(const QByteArray & input)
+{
+    if (m_key.isEmpty()) {
+        m_key = qossl::randomAesKey();
+    }
+
+    m_iv = randomBytes(qossl::AesBlockSize);
+    m_method = qossl::Aes::ECB;
+
+    const QByteArray fixedPad = QByteArray::fromBase64(
+                "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkg"
+                "aGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBq"
+                "dXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUg"
+                "YnkK");
+
+    // Start and end padding
+    QByteArray padPlain = input + fixedPad;
+
+    padPlain = pkcs7Pad(padPlain, qossl::AesBlockSize);
+
+    QByteArray ret = qossl::aesEcbEncrypt(padPlain,m_key);
+
+    return ret;
+}
+
+
+
+void TestSet2::testBreakEncrypionOracle2()
+{
+
+}
