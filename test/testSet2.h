@@ -27,6 +27,10 @@ private slots:
     void testEncryptionOracle_data();
     void testEncryptionOracle();
 
+    // Challenge 12
     void testBreakEncrypionOracle2();
+
+    // Challenge 13
+    void testChallenge13();
 };
 

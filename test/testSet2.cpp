@@ -278,3 +278,21 @@ void TestSet2::testBreakEncrypionOracle2()
     QCOMPARE( plain, QByteArray("Rollin' in my 5."));
 
 }
+
+void TestSet2::testChallenge13()
+{
+    using namespace qossl;
+    const QString kvlist = "foo=bar&baz=qux&zap=zazzle";
+    QHash<QString,QString> value = qossl::keyValueParse(kvlist);
+    QCOMPARE(value.value("foo"), QString("bar"));
+    QCOMPARE(value.value("baz"), QString("qux"));
+    QCOMPARE(value.value("zap"), QString("zazzle"));
+
+    QCOMPARE(profile_for("foo@bar.com"), QString("email=foo@bar.com&uid=10&role=user"));
+
+    const QByteArray key = randomAesKey();
+
+    //Method:
+    // Use long blocks 'AAAAAAAAAx@mail.com' as the email address
+    // Final text must be block aligned.
+}

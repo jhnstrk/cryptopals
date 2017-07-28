@@ -5,6 +5,7 @@
 #include <openssl/rand.h>
 
 #include <QByteArray>
+#include <QUrlQuery>
 #include <QVector>
 
 #include <QDebug>
@@ -385,5 +386,30 @@ int detectBlockSize( EncryptionOracle & oracle )
     }
 
     return sz2 - sz1; // ????
+}
+
+QHash<QString, QString> keyValueParse(const QString & input){
+
+    QUrlQuery query(input);
+    QHash<QString, QString> ret;
+
+    typedef QPair<QString, QString> StringPair;
+    foreach (const StringPair & item, query.queryItems()) {
+
+        ret[item.first] = item.second;
+
+    }
+    return ret;
+}
+
+QString profile_for(const QString & email)
+{
+    const int uid  = 10;
+    const QString role = "user";
+    QUrlQuery query;
+    query.addQueryItem("email", email);
+    query.addQueryItem("uid", QString::number(uid));
+    query.addQueryItem("role", role);
+    return query.toString();
 }
 }   // namespace qossl

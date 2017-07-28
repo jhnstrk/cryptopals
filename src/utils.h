@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QHash>
 
+
 namespace qossl {
 
     enum { AesBlockSize = 16 };
@@ -66,4 +67,8 @@ namespace qossl {
     Aes::Method estimateAesMethod(const QByteArray & cipherText);
 
     int detectBlockSize( EncryptionOracle & oracle );
+
+    QHash<QString, QString> keyValueParse(const QString & input);
+
+    QString profile_for(const QString & email);
 }
