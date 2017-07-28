@@ -355,7 +355,7 @@ Aes::Method estimateAesMethod(const QByteArray &cipherText) {
     return (detectAesEcb(cipherText) > 0.00001) ? Aes::ECB : Aes::CBC;
 }
 
-int detectBlackBoxBlockSize( EncryptionOracle & oracle )
+int detectBlockSize( EncryptionOracle & oracle )
 {
     const int MaxBlock = 8096;  // Arbitrary upper limit.
     const int sz0 = oracle.encrypt(QByteArray()).size();

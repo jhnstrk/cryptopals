@@ -65,5 +65,5 @@ namespace qossl {
 
     Aes::Method estimateAesMethod(const QByteArray & cipherText);
 
-    int detectBlackBoxBlockSize( QByteArray (* pFunc)(const QByteArray& input) );
+    int detectBlockSize( EncryptionOracle & oracle );
 }

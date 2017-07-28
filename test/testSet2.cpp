@@ -243,5 +243,38 @@ QByteArray EncryptionOracleC12::encrypt(const QByteArray & input)
 
 void TestSet2::testBreakEncrypionOracle2()
 {
+    using namespace qossl;
+    EncryptionOracleC12 oracle;
+    oracle.setKey(randomAesKey());
+
+    const int blockSize = detectBlockSize(oracle);
+    QCOMPARE(blockSize, (int)AesBlockSize);
+
+    {
+        const QByteArray sample = QByteArray(2*blockSize,'a');
+        QByteArray encSample = oracle.encrypt(sample);
+
+        // This confirms ECB... first 2 blocks are same.
+        QVERIFY(encSample.mid(0,blockSize) == encSample.mid(blockSize,blockSize));
+    }
+    QByteArray plain;
+    for (int ipos = 0; ipos < blockSize; ++ipos) {
+
+        // Build dictionary.
+        QHash< QByteArray, char > encBlocks;
+        for (int i=0;i<256; ++i) {
+            const QByteArray sample = QByteArray(blockSize - 1 - ipos,'A').append(plain).append((char)i);
+            const QByteArray eblock = oracle.encrypt(sample).left(blockSize);
+            encBlocks[ eblock ] = (char)i;
+        }
+
+        // Get actual encrypted block.
+        const QByteArray paddedPlain = QByteArray(blockSize - 1 - ipos,'A');
+        const QByteArray ref1 = oracle.encrypt(paddedPlain).left(blockSize);
+        plain.append(encBlocks.value(ref1));
+    }
+
+    qDebug() << "First block is " << plain;
+    QCOMPARE( plain, QByteArray("Rollin' in my 5."));
 
 }
