@@ -220,7 +220,7 @@ QByteArray EncryptionOracleC12::encrypt(const QByteArray & input)
         m_key = qossl::randomAesKey();
     }
 
-    m_iv = randomBytes(qossl::AesBlockSize);
+    m_iv = QByteArray();
     m_method = qossl::Aes::ECB;
 
     const QByteArray fixedPad = QByteArray::fromBase64(
@@ -279,6 +279,25 @@ void TestSet2::testBreakEncrypionOracle2()
 
 }
 
+namespace challenge13 {
+    static QByteArray s_key;
+
+    QByteArray encProfile(const QString & email)
+    {
+        using namespace qossl;
+        const QByteArray plain = profile_for(email).toUtf8();
+        const QByteArray encPlain = aesEcbEncrypt(pkcs7Pad(plain,AesBlockSize),s_key);
+        return encPlain;
+    }
+
+    QHash<QString, QString> decProfile(const QByteArray & enc)
+    {
+        using namespace qossl;
+        QByteArray dec = aesEcbDecrypt(enc,s_key);
+        dec = pkcs7Unpad(dec);
+        return keyValueParse(QString::fromUtf8(dec));
+    }
+}
 void TestSet2::testChallenge13()
 {
     using namespace qossl;
@@ -290,9 +309,20 @@ void TestSet2::testChallenge13()
 
     QCOMPARE(profile_for("foo@bar.com"), QString("email=foo@bar.com&uid=10&role=user"));
 
-    const QByteArray key = randomAesKey();
-
     //Method:
-    // Use long blocks 'AAAAAAAAAx@mail.com' as the email address
-    // Final text must be block aligned.
+    //
+    // 0123456789abcdef0123456789abcdef
+    // email=fooxx@bar.com&uid=10&role=user    // Ensures final block is 'user' + padding.
+    // Get the enc. for last block (tampered) by asking for admin + pkcs7padding in the email.
+    // email=fooAAAAAAAadmin___________@bar.com&uid=10&role=user  // _ -> pkcspadding.
+
+    challenge13::s_key = randomAesKey();
+    const QByteArray normalEnc = challenge13::encProfile("fooxx@bar.com");
+    qDebug() << challenge13::decProfile(normalEnc);
+
+    QString p1 = "fooAAAAAAA" + pkcs7Pad("admin",qossl::AesBlockSize) + "@bar.com";
+    const QByteArray enc1 = challenge13::encProfile(p1);
+    const QByteArray tamperedEnc = normalEnc.mid(0,2*qossl::AesBlockSize).append(enc1.mid(qossl::AesBlockSize, qossl::AesBlockSize));
+
+    qDebug() << challenge13::decProfile(tamperedEnc);
 }

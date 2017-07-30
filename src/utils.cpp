@@ -198,7 +198,7 @@ QByteArray pkcs7Pad(const QByteArray &data, const int blocksize)
         qWarning() << "PKCS7 overflow";
     }
 
-    if (n == 0) {
+    if ((n == 0) && (data.at(data.size()-1) < blocksize)) {
         // data is a multiple of the padding size, we must add a complete block.
         n = blocksize;
     }
@@ -410,6 +410,6 @@ QString profile_for(const QString & email)
     query.addQueryItem("email", email);
     query.addQueryItem("uid", QString::number(uid));
     query.addQueryItem("role", role);
-    return query.toString();
+    return query.toString(QUrl::FullyDecoded);
 }
 }   // namespace qossl
