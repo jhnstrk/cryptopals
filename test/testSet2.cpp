@@ -326,3 +326,132 @@ void TestSet2::testChallenge13()
 
     qDebug() << challenge13::decProfile(tamperedEnc);
 }
+
+class EncryptionOracleC14 : public qossl::EncryptionOracle {
+public:
+    EncryptionOracleC14(): m_key(qossl::randomAesKey())
+    {}
+    virtual ~EncryptionOracleC14() {}
+
+    QByteArray encrypt(const QByteArray & input) Q_DECL_OVERRIDE;
+
+    QByteArray getKey() const { return m_key; }
+
+private:
+    QByteArray m_key,m_prefix;
+};
+
+QByteArray EncryptionOracleC14::encrypt(const QByteArray & input)
+{
+    m_prefix = qossl::randomBytes( qossl::randomUChar() );
+
+    const QByteArray fixedPad = QByteArray::fromBase64(
+                "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkg"
+                "aGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBq"
+                "dXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUg"
+                "YnkK");
+
+    // Start and end padding
+    QByteArray padPlain = m_prefix + input + fixedPad;
+
+    padPlain = pkcs7Pad(padPlain, qossl::AesBlockSize);
+
+    QByteArray ret = qossl::aesEcbEncrypt(padPlain,m_key);
+
+    return ret;
+}
+
+void TestSet2::testChallenge14()
+{
+    using namespace qossl;
+    EncryptionOracleC14 oracle;
+
+    // Find what 'AAAAA...' is
+    const QByteArray markerA = QByteArray(AesBlockSize, 'A');
+    const QByteArray markerB = QByteArray(AesBlockSize, 'B');
+    QByteArray encMarkerA, encMarkerB;
+    for (int iMarker = 0; iMarker <2; ++iMarker) {
+        QByteArray putBytes = repeated(iMarker == 0 ? markerA: markerB, 8);
+        QByteArray encrypted = oracle.encrypt(putBytes);
+        QByteArray encMarker;
+        for (int iBlock = 0; iBlock < encrypted.size()/AesBlockSize - 3; ++iBlock) {
+            const QByteArray curr = encrypted.mid(iBlock*AesBlockSize,AesBlockSize);
+            const QByteArray nex1 = encrypted.mid((iBlock+1)*AesBlockSize,AesBlockSize);
+            const QByteArray nex2 = encrypted.mid((iBlock+2)*AesBlockSize,AesBlockSize);
+
+            if ( (curr == nex1) && (curr == nex2) ) {
+                encMarker = curr;
+                break;
+            }
+        }
+        if (iMarker ==0) {
+            encMarkerA = encMarker;
+        } else {
+            encMarkerB = encMarker;
+        }
+    }
+    QVERIFY(!encMarkerA.isNull());
+    QVERIFY(!encMarkerB.isNull());
+
+    qDebug() << "Got enc markers";
+
+    const int blockSize = AesBlockSize;
+
+    // Build string of markers with gaps.
+    const QByteArray markerString = markerA + markerB;
+    const QByteArray encMarkerString = encMarkerA + encMarkerB;
+    QByteArray plain;
+
+    for (int ipos = 0; ipos < blockSize*100; ++ipos) {
+
+        // Build dictionary.
+        QHash< QByteArray, char > encBlocks;
+
+        QByteArray lastBytes;
+        if (ipos < blockSize) {
+            lastBytes = QByteArray(blockSize - 1 - ipos,'A') + plain;
+        } else {
+            lastBytes = plain.right(blockSize -1);
+        }
+
+        for (int i=0;i<256; ++i) {
+            const QByteArray sample = markerString + QByteArray(lastBytes)
+                    .append((char)i);
+            QByteArray eblock;
+            int ix = -1;
+            do {
+                eblock = oracle.encrypt(sample);
+                ix = eblock.indexOf(encMarkerString);
+            } while(ix == -1);
+
+            eblock = eblock.mid(ix + encMarkerString.size(), AesBlockSize);
+
+            encBlocks[ eblock ] = (char)i;
+        }
+
+        // Get actual encrypted block.
+        const int iBlock = ipos / blockSize;
+        const QByteArray paddedPlain = QByteArray(blockSize - 1 - (ipos % blockSize), 'A');
+
+        QByteArray ref1;
+        int ix = -1;
+        do {
+            ref1 = oracle.encrypt(markerString + paddedPlain);
+            ix = ref1.indexOf(encMarkerString);
+        } while(ix == -1);
+
+        const QByteArray nextBlock = ref1.mid(ix + encMarkerString.size() + (iBlock*AesBlockSize), AesBlockSize);
+
+        if (!encBlocks.contains(nextBlock)) {
+            // End.
+            break;
+        }
+        plain.append(encBlocks.value(nextBlock));
+    }
+
+    QCOMPARE(plain, QByteArray("Rollin' in my 5.0\n"
+                    "With my rag-top down so my hair can blow\n"
+                    "The girlies on standby waving just to say hi\nDid you stop? "
+                    "No, I just drove by\n\x01"));
+}
+

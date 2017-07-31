@@ -32,5 +32,8 @@ private slots:
 
     // Challenge 13
     void testChallenge13();
+
+    // Challenge 14
+    void testChallenge14();
 };
 

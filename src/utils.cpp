@@ -412,4 +412,24 @@ QString profile_for(const QString & email)
     query.addQueryItem("role", role);
     return query.toString(QUrl::FullyDecoded);
 }
+
+QList<QByteArray> splitBlocks(const QByteArray& input, int size)
+{
+    QList<QByteArray> ret;
+    for (int i=0; i<input.size(); i+=size) {
+        ret.append(input.mid(i,size));
+    }
+    return ret;
+}
+
+QByteArray repeated(const QByteArray &input, int count)
+{
+    QByteArray ret;
+    ret.reserve(input.size() * count);
+    for (int i=0; i<count; ++i) {
+        ret.append(input);
+    }
+    return ret;
+}
+
 }   // namespace qossl

@@ -70,5 +70,10 @@ namespace qossl {
 
     QHash<QString, QString> keyValueParse(const QString & input);
 
+    // Split into blocks
+    QList<QByteArray> splitBlocks(const QByteArray & input,int size = AesBlockSize);
+
+    QByteArray repeated(const QByteArray & input, int count);
+
     QString profile_for(const QString & email);
 }
