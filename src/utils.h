@@ -2,9 +2,23 @@
 
 #include <QByteArray>
 #include <QHash>
-
+#include <QException>
+#include <QString>
 
 namespace qossl {
+
+    class PaddingException : public QException {
+    public:
+        PaddingException(const QString & what = QString()): m_what(what.toUtf8()) {}
+        PaddingException(const PaddingException& other) : m_what(other.m_what) {}
+        virtual ~PaddingException() throw() {}
+
+        virtual void raise() const Q_DECL_OVERRIDE { throw *this; }
+        virtual QException *clone() const Q_DECL_OVERRIDE { return new PaddingException(*this); }
+        virtual const char* what() const Q_DECL_OVERRIDE throw() { return m_what.constData(); }
+    private:
+        QByteArray m_what;
+    };
 
     enum { AesBlockSize = 16 };
 

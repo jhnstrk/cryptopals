@@ -458,6 +458,46 @@ void TestSet2::testChallenge14()
     QCOMPARE(plain, QByteArray("Rollin' in my 5.0\n"
                     "With my rag-top down so my hair can blow\n"
                     "The girlies on standby waving just to say hi\nDid you stop? "
-                    "No, I just drove by\n"));
+                               "No, I just drove by\n"));
+}
+
+void TestSet2::testChallenge15_data()
+{
+    QTest::addColumn<QByteArray>("data");
+    QTest::addColumn<int>("len");
+    QTest::addColumn<QByteArray>("padded");
+    QTest::addColumn<bool>("throws");
+
+    QTest::newRow("Challenge16")
+        << QByteArray("ICE ICE BABY\x04\x04\x04\x04")
+        << 16
+        <<  QByteArray("ICE ICE BABY") << false;
+
+    QTest::newRow("Bad pad 1")
+        << QByteArray("ICE ICE BABY\x05\x05\x05\x05") << 16
+        << QByteArray() << true;
+    QTest::newRow("bad pad 2")
+        << QByteArray("ICE ICE BABY\x01\x02\x03\x04") << 16
+        << QByteArray() << true;
+}
+
+void TestSet2::testChallenge15()
+{
+    const QFETCH( QByteArray, data);
+    const QFETCH( int, len);
+    const QFETCH( QByteArray, padded);
+    const QFETCH( bool, throws);
+
+    QByteArray actual;
+    bool didThrow = false;
+    try {
+        actual = qossl::pkcs7Unpad(data,len);
+    }
+    catch (qossl::PaddingException & e) {
+        didThrow = true;
+    }
+
+    QCOMPARE(actual, padded);
+    QCOMPARE(didThrow, throws);
 }
 

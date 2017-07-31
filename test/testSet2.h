@@ -35,5 +35,9 @@ private slots:
 
     // Challenge 14
     void testChallenge14();
+
+    // Challenge 15: Pkcs7 2.
+    void testChallenge15_data();
+    void testChallenge15();
 };
 

@@ -221,19 +221,20 @@ QByteArray pkcs7Unpad(const QByteArray &data, const int blocksize)
 
     if (lastVal > data.size()) {
         qCritical() << "Bad padding (Implied padding > data size)";
-        return data;
+        throw PaddingException("Bad padding");
     }
 
     if (blocksize != -1) {
         if (lastVal > blocksize) {
             qWarning() << "Bad padding (Implied padding > block size)";
+            throw PaddingException("Bad padding");
         }
     }
 
     for (int i=data.size() -lastVal; i<data.size(); ++i) {
         if (data.at(i) != lastVal) {
             qWarning() << "Bad padding (Inconstistent last bytes)";
-            return data;
+            throw PaddingException("Bad padding");
         }
     }
 
