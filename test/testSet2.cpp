@@ -404,31 +404,6 @@ void TestSet2::testChallenge14()
 
     for (int ipos = 0; ipos < blockSize*100; ++ipos) {
 
-        // Build dictionary.
-        QHash< QByteArray, char > encBlocks;
-
-        QByteArray lastBytes;
-        if (ipos < blockSize) {
-            lastBytes = QByteArray(blockSize - 1 - ipos,'A') + plain;
-        } else {
-            lastBytes = plain.right(blockSize -1);
-        }
-
-        for (int i=0;i<256; ++i) {
-            const QByteArray sample = markerString + QByteArray(lastBytes)
-                    .append((char)i);
-            QByteArray eblock;
-            int ix = -1;
-            do {
-                eblock = oracle.encrypt(sample);
-                ix = eblock.indexOf(encMarkerString);
-            } while(ix == -1);
-
-            eblock = eblock.mid(ix + encMarkerString.size(), AesBlockSize);
-
-            encBlocks[ eblock ] = (char)i;
-        }
-
         // Get actual encrypted block.
         const int iBlock = ipos / blockSize;
         const QByteArray paddedPlain = QByteArray(blockSize - 1 - (ipos % blockSize), 'A');
@@ -442,16 +417,47 @@ void TestSet2::testChallenge14()
 
         const QByteArray nextBlock = ref1.mid(ix + encMarkerString.size() + (iBlock*AesBlockSize), AesBlockSize);
 
-        if (!encBlocks.contains(nextBlock)) {
+        // Find a match.
+
+        QByteArray lastBytes;
+        if (ipos < blockSize) {
+            lastBytes = QByteArray(blockSize - 1 - ipos,'A') + plain;
+        } else {
+            lastBytes = plain.right(blockSize -1);
+        }
+
+        int nextChar = -1;
+
+        for (int i=0;i<256; ++i) {
+            const QByteArray sample = markerString + QByteArray(lastBytes)
+                    .append((char)i);
+            QByteArray eblock;
+            int ix = -1;
+            do {
+                eblock = oracle.encrypt(sample);
+                ix = eblock.indexOf(encMarkerString);
+            } while(ix == -1);
+
+            eblock = eblock.mid(ix + encMarkerString.size(), AesBlockSize);
+
+            if (eblock == nextBlock) {
+                nextChar = i;
+                break;
+            }
+        }
+
+        if (nextChar == -1) {
             // End.
             break;
         }
-        plain.append(encBlocks.value(nextBlock));
+        plain.append((char)nextChar);
     }
 
+    plain = pkcs7Unpad(plain);
+    qDebug() << plain;
     QCOMPARE(plain, QByteArray("Rollin' in my 5.0\n"
                     "With my rag-top down so my hair can blow\n"
                     "The girlies on standby waving just to say hi\nDid you stop? "
-                    "No, I just drove by\n\x01"));
+                    "No, I just drove by\n"));
 }
 
