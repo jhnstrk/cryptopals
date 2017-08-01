@@ -36,7 +36,7 @@ void TestSet2::testPkcs7Pad_data()
     QTest::newRow("no pad char")
         << QByteArray("YELLOW SUBMARINE") << 16 << QByteArray("YELLOW SUBMARINE").append(QByteArray(16,16));
     QTest::newRow("empty")
-        << QByteArray("") << 16 << QByteArray("");
+        << QByteArray("") << 16 << QByteArray(16,'\x10');
     QTest::newRow("2 blocks")
         << QByteArray("12345") << 4 << QByteArray("12345\x03\x03\x03");
 }
@@ -94,6 +94,11 @@ void TestSet2::testAesCbcEncrypt_data()
 
     QTest::newRow("Simple")
         << QByteArray("xygxygyxgxygxygvxygxygyxgxygxygvxygxygyxgxygxygv")
+        << QByteArray("YELLOW SUBMARINE")
+        << QByteArray(qossl::AesBlockSize,(char)0);
+
+    QTest::newRow("Empty")
+        << QByteArray("")
         << QByteArray("YELLOW SUBMARINE")
         << QByteArray(qossl::AesBlockSize,(char)0);
 

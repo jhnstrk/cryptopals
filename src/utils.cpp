@@ -188,17 +188,14 @@ QByteArray aesEcbEncrypt(const QByteArray &paddedPlainText, const QByteArray &ke
 
 QByteArray pkcs7Pad(const QByteArray &data, const int blocksize)
 {
-    if (data.isEmpty()) {
-        return data; // Not sure what the spec is here; Add a block?
-    }
     const int lastblock = (data.size() / blocksize) * blocksize;
 
     int n =  blocksize + lastblock - data.size();
-    if (n > 255) {
+    if (blocksize > 255) {
         qWarning() << "PKCS7 overflow";
     }
 
-    if ((n == 0) && (data.at(data.size()-1) < blocksize)) {
+    if (n == 0) {
         // data is a multiple of the padding size, we must add a complete block.
         n = blocksize;
     }
@@ -214,26 +211,30 @@ QByteArray pkcs7Pad(const QByteArray &data, const int blocksize)
 QByteArray pkcs7Unpad(const QByteArray &data, const int blocksize)
 {
     if (data.isEmpty()) {
-        return data;
+        throw PaddingException("Bad padding");
     }
 
-    const int lastVal = data.at(data.size() -1);
+    const int lastVal = static_cast<unsigned char>(data.at(data.size() -1));
+
+    if (lastVal == 0) {
+        throw PaddingException("Bad padding");  // Not allowed by spec
+    }
 
     if (lastVal > data.size()) {
-        qCritical() << "Bad padding (Implied padding > data size)";
+        //qCritical() << "Bad padding (Implied padding > data size)";
         throw PaddingException("Bad padding");
     }
 
     if (blocksize != -1) {
         if (lastVal > blocksize) {
-            qWarning() << "Bad padding (Implied padding > block size)";
+            //qWarning() << "Bad padding (Implied padding > block size)";
             throw PaddingException("Bad padding");
         }
     }
 
     for (int i=data.size() -lastVal; i<data.size(); ++i) {
         if (data.at(i) != lastVal) {
-            qWarning() << "Bad padding (Inconstistent last bytes)";
+            //qWarning() << "Bad padding (Inconstistent last bytes)";
             throw PaddingException("Bad padding");
         }
     }
