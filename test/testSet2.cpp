@@ -501,3 +501,78 @@ void TestSet2::testChallenge15()
     QCOMPARE(didThrow, throws);
 }
 
+
+class Challenge16 {
+public:
+    Challenge16() : m_key(qossl::randomAesKey()),
+        m_iv(qossl::randomBytes(qossl::AesBlockSize))
+    {}
+
+    // First func
+    QByteArray encode(const QByteArray & userdata) const {
+        QByteArray d1 = userdata;
+        d1 = d1.replace('%', "%25");
+        d1 = d1.replace(';', "%3B");
+        d1 = d1.replace('=', "%3D");
+        d1 = QByteArray("comment1=cooking%20MCs;userdata=")
+             + d1
+             + QByteArray(";comment2=%20like%20a%20pound%20of%20bacon");
+
+        d1 = qossl::pkcs7Pad(d1,qossl::AesBlockSize);
+
+        d1 = qossl::aesCbcEncrypt(d1,m_key,m_iv);
+        return d1;
+    }
+
+    bool isAdmin(const QByteArray & encrypted) const {
+        QByteArray dec = qossl::aesCbcDecrypt(encrypted, m_key, m_iv);
+        dec = qossl::pkcs7Unpad(dec);
+
+        QList<QByteArray> split = dec.split(';');
+        foreach (const QByteArray & item, split) {
+            const int ix = item.indexOf('=');
+            if (ix == -1) {
+                continue;
+            }
+            QByteArray key = item.mid(0,ix);
+            QByteArray value = item.mid(ix + 1);
+            if (key == "admin") {
+                return value == "true";
+            }
+        }
+        return false;
+    }
+
+private:
+    QByteArray m_key, m_iv;
+};
+
+void TestSet2::testChallenge16()
+{
+    Challenge16 obj;
+
+    // 0123456789abcdef0123456789abcdef
+    // comment1=cooking%20MCs;userdata=
+    // Helpfully the prefix is exactly 2 blocks....
+
+    QByteArray trashblock = QByteArray(qossl::AesBlockSize, 'A'); // Anything.
+    //                        0123456789abcdef
+    QByteArray targetblock = "AadminBtrue";
+
+    const QByteArray regular = obj.encode(trashblock + targetblock);
+    QVERIFY(!obj.isAdmin(regular));
+
+    // These are the bits we need to flip...
+    // Turn ; into A, and = into B so they don't get escaped out.
+    const char flipSemiColon = ((unsigned int)';') ^ ((unsigned int)'A');
+    const char flipEquals = ((unsigned int)'=') ^ ((unsigned int)'B');
+
+    // tamper with the block before....
+    QByteArray tampered = regular;
+    const int n = 2 * qossl::AesBlockSize;
+    tampered.data()[n + 0] ^= flipSemiColon;
+    tampered.data()[n + 6] ^= flipEquals;
+
+    QVERIFY(obj.isAdmin(tampered));
+}
+

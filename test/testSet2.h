@@ -39,5 +39,9 @@ private slots:
     // Challenge 15: Pkcs7 2.
     void testChallenge15_data();
     void testChallenge15();
+
+    // Challenge 16: AES CBC
+    void testChallenge16();
+
 };
 
