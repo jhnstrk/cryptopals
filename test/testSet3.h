@@ -19,4 +19,6 @@ private slots:
     //Aes CTR - fixed nonce
     void testChallenge19();
 
+    // Aes CTR - fixed nonce 2
+    void testChallenge20();
 };

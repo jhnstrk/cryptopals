@@ -121,6 +121,29 @@ QByteArray subsample(const QByteArray &src, int start, int stride)
     return ret;
 }
 
+int maxLen(const QList<QByteArray> & input) {
+    int ret = 0;
+    foreach (const QByteArray & item, input) {
+        if (ret < item.size()) {
+            ret = item.size();
+        }
+    }
+    return ret;
+}
+
+int minLen(const QList<QByteArray> & input) {
+    if (input.size() == 0) {
+        return 0;
+    }
+
+    int ret = input.at(0).size();
+    foreach (const QByteArray & item, input) {
+        if (item.size() < ret) {
+            ret = item.size();
+        }
+    }
+    return ret;
+}
 
 QByteArray aesEcbDecrypt(const QByteArray &cipherText, const QByteArray &key)
 {
@@ -475,6 +498,23 @@ QByteArray repeated(const QByteArray &input, int count)
         ret.append(input);
     }
     return ret;
+}
+
+double findBestXorChar(const QByteArray &cipherText, QByteArray &bestPlain, int &bestCipherChar) {
+    double maxScore = 0;
+    int cipherChar = -1;
+    for (int i=0; i<256; ++i) {
+        QByteArray xorcodeBin(16,static_cast<char>(i));
+        const QByteArray testPlain = xorByteArray(cipherText,xorcodeBin);
+        const double score = scoreEnglishText(testPlain);
+        if (score > maxScore) {
+            maxScore = score;
+            bestPlain = testPlain;
+            cipherChar = i;
+        }
+    }
+    bestCipherChar = cipherChar;
+    return maxScore;
 }
 
 }   // namespace qossl

@@ -67,31 +67,13 @@ void TestSet1::testXor()
     QCOMPARE(actual.toHex(), expected);
 }
 
-namespace {
-    double findBestXorChar(const QByteArray & cipherText, QByteArray & bestPlain, int & bestCipherChar) {
-        double maxScore = 0;
-        int cipherChar = -1;
-        for (int i=0; i<256; ++i) {
-            QByteArray xorcodeBin(1,static_cast<char>(i));
-            const QByteArray testPlain = qossl::xorByteArray(cipherText,xorcodeBin);
-            const double score = qossl::scoreEnglishText(testPlain);
-            if (score > maxScore) {
-                maxScore = score;
-                bestPlain = testPlain;
-                cipherChar = i;
-            }
-        }
-        bestCipherChar = cipherChar;
-        return maxScore;
-    }
-}
 void TestSet1::testXorCrack()
 {
     const QByteArray cipherText = QByteArray::fromHex("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
     QByteArray bestPlain;
 
     int cipherChar = -1;
-    double maxScore = findBestXorChar(cipherText, bestPlain, cipherChar);
+    double maxScore = qossl::findBestXorChar(cipherText, bestPlain, cipherChar);
 
     qDebug() << maxScore << cipherChar << bestPlain;
     QCOMPARE(cipherChar, 88);
@@ -122,7 +104,7 @@ void TestSet1::testXorCrack2()
 
         QByteArray bestPlain;
         int cipherChar = -1;
-        double score = findBestXorChar(cipherText, bestPlain, cipherChar);
+        double score = qossl::findBestXorChar(cipherText, bestPlain, cipherChar);
 
         QVERIFY(score <= 1);
 
@@ -260,7 +242,7 @@ void TestSet1::testBreakRepeatingXor()
             const QByteArray subsampled = qossl::subsample(cipherText, k, keySize);
             QByteArray bestPlain;
             int cipherChar = 0;
-            totalScore += findBestXorChar(subsampled, bestPlain, cipherChar);
+            totalScore += qossl::findBestXorChar(subsampled, bestPlain, cipherChar);
             derivedKey[k] = static_cast<char>(cipherChar);
         }
 

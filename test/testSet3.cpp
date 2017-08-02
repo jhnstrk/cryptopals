@@ -157,15 +157,7 @@ void TestSet3::testChallenge18()
 
 namespace {
 
-    int maxLen(const QList<QByteArray> & input) {
-        int ret = 0;
-        foreach (const QByteArray & item, input) {
-            if (ret < item.size()) {
-                ret = item.size();
-            }
-        }
-        return ret;
-    }
+
     QByteArray extractNthByte(const QList<QByteArray> & input, const int ipos) {
         QByteArray ret;
         ret.reserve(input.size());
@@ -180,17 +172,10 @@ namespace {
     unsigned char guessKeyByteAt(const QList<QByteArray> & cipherList, const int ipos)
     {
         const QByteArray nth = extractNthByte(cipherList, ipos);
-        double highscore = 0;
-        unsigned char highchar = 0;
-        for (int i=0; i<256; ++i) {
-            QByteArray xored = qossl::xorByteArray(nth, QByteArray(16,(char)i));
-            const double value = qossl::scoreEnglishText(xored);
-            if (value > highscore) {
-                highchar = i;
-                highscore = value;
-            }
-        }
-        return highchar;
+        QByteArray temp;
+        int iChar = 0;
+        qossl::findBestXorChar(nth, temp, iChar);
+        return iChar;
     }
 }
 void TestSet3::testChallenge19()
@@ -245,7 +230,7 @@ void TestSet3::testChallenge19()
         cipherList << qossl::aesCtrEncrypt(QByteArray::fromBase64(b64), key,nonce,count0);
     }
 
-    const int len = maxLen(cipherList);
+    const int len = qossl::maxLen(cipherList);
 
     QByteArray guessedKeyStream;
     guessedKeyStream.resize(len);
@@ -263,4 +248,54 @@ void TestSet3::testChallenge19()
     // Also cannot resolve fist character as all upper case, and cannot differentiate with lower.
     QVERIFY(plainTexts.at(0).toLower().startsWith("i have met them at close of da"));
     QCOMPARE(plainTexts.at(1).toLower(), QByteArray("coming with vivid faces"));
+}
+
+namespace {
+QList <QByteArray> readChallenge20()
+{
+    QFile file(":/qossl_test_resources/rsc/set3/20.txt");
+    if (!file.open(QIODevice::ReadOnly)) {
+        throw qossl::RuntimeException("Cannot open file");
+    }
+
+    QList <QByteArray> cipherTexts;
+
+    while(true) {
+        QByteArray next = file.readLine();
+        if (next.isNull()) {
+            break;
+        }
+        cipherTexts << QByteArray::fromBase64(next);
+    }
+    file.close();
+    return cipherTexts;
+}
+}
+void TestSet3::testChallenge20()
+{
+    const QList <QByteArray> cipherTexts = readChallenge20();
+    QVERIFY(cipherTexts.size() > 1);
+
+    const int minLen = qossl::minLen(cipherTexts);
+
+    QVERIFY(minLen > 0);
+
+    QByteArray concatMid;
+    foreach (const QByteArray & item, cipherTexts) {
+        concatMid.append(item.mid(0,minLen));
+    }
+
+    QByteArray derivedKey(minLen, '\0');
+
+    double totalScore = 0;
+    for (int k=0;k<minLen; ++k){
+        const QByteArray subsampled = qossl::subsample(concatMid, k, minLen);
+        QByteArray bestPlain;
+        int cipherChar = 0;
+        totalScore += qossl::findBestXorChar(subsampled, bestPlain, cipherChar);
+        derivedKey[k] = static_cast<char>(cipherChar);
+    }
+
+    qDebug() << qossl::xorByteArray(concatMid, derivedKey);
+
 }

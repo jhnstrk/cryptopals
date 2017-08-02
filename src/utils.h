@@ -7,17 +7,26 @@
 
 namespace qossl {
 
-    class PaddingException : public QException {
+    class RuntimeException : public QException {
     public:
-        PaddingException(const QString & what = QString()): m_what(what.toUtf8()) {}
-        PaddingException(const PaddingException& other) : m_what(other.m_what) {}
+        RuntimeException(const QByteArray & what = QByteArray()): m_what(what) {}
+        RuntimeException(const RuntimeException& other) : m_what(other.m_what) {}
+        virtual ~RuntimeException() throw() {}
+
+        virtual void raise() const Q_DECL_OVERRIDE { throw *this; }
+        virtual QException *clone() const Q_DECL_OVERRIDE { return new RuntimeException(*this); }
+        virtual const char* what() const Q_DECL_OVERRIDE throw() { return m_what.constData(); }
+    private:
+        QByteArray m_what;
+    };
+    class PaddingException : public RuntimeException {
+    public:
+        PaddingException(const QByteArray & what = QByteArray()): RuntimeException(what) {}
+        PaddingException(const PaddingException& other) : RuntimeException(other) {}
         virtual ~PaddingException() throw() {}
 
         virtual void raise() const Q_DECL_OVERRIDE { throw *this; }
         virtual QException *clone() const Q_DECL_OVERRIDE { return new PaddingException(*this); }
-        virtual const char* what() const Q_DECL_OVERRIDE throw() { return m_what.constData(); }
-    private:
-        QByteArray m_what;
     };
 
     enum { AesBlockSize = 16 };
@@ -34,8 +43,14 @@ namespace qossl {
     //! Return the number of bits set in the given char.
     unsigned int countBitsSet(unsigned char c);
 
+    double findBestXorChar(const QByteArray & cipherText, QByteArray & bestPlain, int & bestCipherChar);
+
     //! Sub-sample byte array.
     QByteArray subsample(const QByteArray & src, int start, int stride);
+
+    //! Max, Min lengths of arrays in list.
+    int maxLen(const QList<QByteArray> & input);
+    int minLen(const QList<QByteArray> & input);
 
     //! AES-128 ECB decryption
     QByteArray aesEcbDecrypt(const QByteArray & cipherText, const QByteArray & key);
