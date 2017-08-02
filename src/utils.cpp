@@ -64,6 +64,8 @@ double scoreEnglishText(const QByteArray &src)
 
     result += counts.at(' ');
     result += counts.at('\t') * 0.2;
+    result += counts.at('.') * 0.2;
+    result += counts.at(',') * 0.2;
 
     // Normalize w.r.t number of input chars.
     return result / static_cast<double>(src.size());
@@ -300,6 +302,47 @@ QByteArray aesCbcEncrypt(const QByteArray &plainText, const QByteArray &key, con
         lastBlock = b1;
     }
     return cipherText;
+}
+
+namespace {
+    void copyUint64(QByteArray & b1, int at, quint64 v)
+    {
+        b1[at] = static_cast<char>(v & 0xFF);
+        b1[at + 1] = static_cast<char>((v >> 8) & 0xFF);
+        b1[at + 2] = static_cast<char>((v >> 16) & 0xFF);
+        b1[at + 3] = static_cast<char>((v >> 24) & 0xFF);
+        b1[at + 4] = static_cast<char>((v >> 32) & 0xFF);
+        b1[at + 5] = static_cast<char>((v >> 40) & 0xFF);
+        b1[at + 6] = static_cast<char>((v >> 48) & 0xFF);
+        b1[at + 7] = static_cast<char>((v >> 56) & 0xFF);
+    }
+}
+QByteArray aesCtrEncrypt(const QByteArray & plainText, const QByteArray & key, quint64 nonce, quint64 count0)
+{
+    if (key.size() != AesBlockSize) {
+        qCritical() << "Bad key size";
+        return QByteArray();
+    }
+
+    QByteArray cipherText;
+    cipherText.reserve(plainText.size());
+
+    QByteArray countblock = QByteArray(AesBlockSize,'\0');
+    copyUint64(countblock,0,nonce);
+    quint64 counter = count0;
+    for (int i = 0; i< plainText.size(); i+=AesBlockSize ) {
+        copyUint64(countblock,8,counter);
+        QByteArray ablock = aesEcbEncrypt(countblock,key);
+        ablock = xorByteArray(plainText.mid(i,AesBlockSize),ablock);
+        cipherText.append(ablock);
+        ++counter;
+    }
+    return cipherText;
+}
+
+QByteArray aesCtrDecrypt(const QByteArray & cipherText, const QByteArray & key, quint64 nonce, quint64 count0)
+{
+    return aesCtrEncrypt(cipherText,key,nonce,count0);
 }
 
 QByteArray randomBytes(int len)

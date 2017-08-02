@@ -52,6 +52,10 @@ namespace qossl {
     QByteArray aesCbcDecrypt(const QByteArray & cipherText, const QByteArray & key, const QByteArray & iv);
     QByteArray aesCbcEncrypt(const QByteArray & plainText, const QByteArray & key, const QByteArray & iv);
 
+    //! AES CTR
+    QByteArray aesCtrDecrypt(const QByteArray & cipherText, const QByteArray & key, quint64 nonce, quint64 count0);
+    QByteArray aesCtrEncrypt(const QByteArray & plainText, const QByteArray & key, quint64 nonce, quint64 count0);
+
     //! Generate len cryptographic random bytes.
     QByteArray randomBytes(int len);
     unsigned char   randomUChar();
