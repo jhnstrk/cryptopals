@@ -21,4 +21,7 @@ private slots:
 
     // Aes CTR - fixed nonce 2
     void testChallenge20();
+
+    // Mersenne twister
+    void testChallenge21();
 };

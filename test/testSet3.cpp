@@ -1,6 +1,7 @@
 #include "testSet3.h"
 
 #include <utils.h>
+#include <mersene_twister.h>
 
 #include <QByteArray>
 #include <QDebug>
@@ -298,4 +299,26 @@ void TestSet3::testChallenge20()
 
     qDebug() << qossl::xorByteArray(concatMid, derivedKey);
 
+}
+
+void TestSet3::testChallenge21()
+{
+    qossl::MerseneTwister19937 twister(1);
+
+    // Expected first 10 values when seeded with 1.
+    QList<unsigned int> expected = QList<unsigned int>()
+            << 1791095845
+               << 4282876139
+               << 3093770124
+               << 4005303368
+               << 491263
+               << 550290313
+               << 1298508491
+               << 4290846341
+               << 630311759
+               << 1013994432;
+
+    for (int i=0; i<10; ++i) {
+        QCOMPARE(twister.extract_number(), expected.at(i));
+    }
 }

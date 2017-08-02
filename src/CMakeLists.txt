@@ -13,6 +13,7 @@ set( ${PROJECT_NAME}_HEADERS
   ${${PROJECT_NAME}_HEADERS_MOC}
   qossl_internal.h
   utils.h
+  mersene_twister.h
 )
 
 
@@ -24,6 +25,7 @@ add_library( qossl SHARED
   ${${PROJECT_NAME}_HEADERS}
   qossl_internal.cpp
   utils.cpp
+  mersene_twister.cpp
   )
 
 find_package( ZLIB REQUIRED )
