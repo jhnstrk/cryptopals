@@ -74,6 +74,7 @@ namespace qossl {
     //! Generate len cryptographic random bytes.
     QByteArray randomBytes(int len);
     unsigned char   randomUChar();
+    unsigned int    randomUInt();
 
     QByteArray randomAesKey();
 

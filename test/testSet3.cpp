@@ -3,7 +3,9 @@
 #include <utils.h>
 #include <mersene_twister.h>
 
+
 #include <QByteArray>
+#include <QDateTime>
 #include <QDebug>
 #include "test.h"
 
@@ -321,4 +323,44 @@ void TestSet3::testChallenge21()
     for (int i=0; i<10; ++i) {
         QCOMPARE(twister.extract_number(), expected.at(i));
     }
+}
+
+namespace {
+
+    unsigned int findSeed( const unsigned int actual, const qint64 tnow )
+    {
+        qossl::MerseneTwister19937 twister;
+        for (qint64 i=0; i<3600; ++i) {
+            const unsigned int testseed = (unsigned int)(tnow - i);
+            twister.seed(testseed);
+            const unsigned int value = twister.extract_number();
+            if (value == actual) {
+                return testseed;
+            }
+        }
+        return 0; // seed not found.
+    }
+
+}
+void TestSet3::testChallenge22()
+{
+    using namespace qossl;
+
+    MerseneTwister19937 twister;
+    // secs since epoch.
+    const qint64 t1 = QDateTime::currentDateTime().toMSecsSinceEpoch() / 1000;
+
+    // simulate wait.
+    const qint64 t2 = t1 + 40 + (randomUInt() % 1000);
+
+    twister.seed(t2);
+    const unsigned int value = twister.extract_number();
+
+    // simulate wait.
+    const qint64 t3 = t2 + 40 + (randomUInt() % 1000);
+
+    // find seed by scanning all possible seeds in the recent past.
+    const unsigned int guessedSeed = findSeed(value,t3);
+
+    QCOMPARE(guessedSeed, t2);
 }

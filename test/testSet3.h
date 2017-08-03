@@ -24,4 +24,7 @@ private slots:
 
     // Mersenne twister
     void testChallenge21();
+
+    // Finding seed of RNG
+    void testChallenge22();
 };

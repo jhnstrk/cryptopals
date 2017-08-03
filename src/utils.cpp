@@ -391,6 +391,19 @@ unsigned char randomUChar()
     return ret;
 }
 
+unsigned int randomUInt()
+{
+    union {
+        unsigned int value;
+        unsigned char bs[sizeof(unsigned int)];
+    } ret;
+    const int status = RAND_bytes(ret.bs, sizeof(ret.bs));
+    if (status != 1) {
+        qWarning() << "Random bytes not available";
+    }
+    return ret.value;
+}
+
 QByteArray randomAesKey(){
     return randomBytes(AesBlockSize);
 }
