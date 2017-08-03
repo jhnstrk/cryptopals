@@ -6,7 +6,7 @@
 class TestSet3: public QObject
 {
     Q_OBJECT
-//private slots:
+private slots:
     void initTestCase();
     void cleanupTestCase();
 
@@ -27,7 +27,10 @@ class TestSet3: public QObject
 
     // Finding seed of RNG
     void testChallenge22();
-private slots:
+
     // Inverting MT19937
     void testUnTemper();
+
+    // Clone MT19937 by tapping its output.
+    void testChallenge23();
 };

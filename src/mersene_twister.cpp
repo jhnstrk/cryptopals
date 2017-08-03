@@ -31,6 +31,15 @@ MerseneTwister19937::MerseneTwister19937(const unsigned int value) :
     this->seed(value);
 }
 
+MerseneTwister19937::MerseneTwister19937(const QList<unsigned int> &state, unsigned int index) :
+    index(index),
+    MT( new unsigned int [n])
+{
+    for (unsigned int i=0; i<n; ++i) {
+        MT[i] = state.at(i);
+    }
+}
+
 MerseneTwister19937::~MerseneTwister19937()
 {
     delete[] MT;
@@ -57,6 +66,11 @@ unsigned int MerseneTwister19937::extract_number()
 
     index++;
     return w_mask & y;
+}
+
+int MerseneTwister19937::stateSize()
+{
+    return n;
 }
 
 unsigned int MerseneTwister19937::temper(unsigned int y)

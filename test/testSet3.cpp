@@ -378,3 +378,31 @@ void TestSet3::testUnTemper()
                       MerseneTwister19937::temper(input)));
     }
 }
+
+void TestSet3::testChallenge23()
+{
+    using namespace qossl;
+
+    MerseneTwister19937 twister;
+
+    twister.seed( qossl::randomUInt() );
+
+    QList<unsigned int> state;
+    const int n = MerseneTwister19937::stateSize();
+    state.reserve(n);
+
+    for (int i=0; i<n; ++i) {
+        state.append( MerseneTwister19937::untemper(twister.extract_number()) );
+    }
+
+    MerseneTwister19937 cloneTwister(state, n);
+
+    for (int i=0; i<2*n; ++i) {
+        QCOMPARE( twister.extract_number(), cloneTwister.extract_number() );
+    }
+
+    // The attack could be harder if
+    // - the generator included hidden state information
+    // - the generator used a hash before supplying the data.
+    // If each output were hashed it would be impossible to reverse it => impossible to clone.
+}
