@@ -15,6 +15,8 @@ public:
     // calling twist() every n numbers
     unsigned int extract_number();
 
+    static unsigned int temper(const unsigned int y);
+    static unsigned int untemper(const unsigned int y);
 private:
     // Generate the next n values from the series x_i
     void twist();

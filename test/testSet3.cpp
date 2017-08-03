@@ -364,3 +364,17 @@ void TestSet3::testChallenge22()
 
     QCOMPARE(guessedSeed, t2);
 }
+
+void TestSet3::testUnTemper()
+{
+    const QList<unsigned int> samples = QList<unsigned int>()
+            << 0 << 1 << (~(unsigned int)0) << 2 << 16
+            << 0xf0f0f0f0 << 0x12345678;
+
+    using namespace qossl;
+
+    foreach (const unsigned int input, samples) {
+        QCOMPARE( input, MerseneTwister19937::untemper(
+                      MerseneTwister19937::temper(input)));
+    }
+}

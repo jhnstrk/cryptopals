@@ -52,15 +52,75 @@ unsigned int MerseneTwister19937::extract_number()
     }
 
     unsigned int y = MT[index];
-    y ^= ((y >> u) & d);
-    y ^= ((y << s) & b);
-    y ^= ((y << t) & c);
-    y ^= (y >> l);
+
+    y = temper(y);
 
     index++;
     return w_mask & y;
 }
 
+unsigned int MerseneTwister19937::temper(unsigned int y)
+{
+    // Tempering.
+    y ^= ((y >> u) & d);
+    y ^= ((y << s) & b);
+    y ^= ((y << t) & c);
+    y ^= (y >> l);
+    return y;
+}
+
+namespace {
+
+    unsigned int un_left_shift_mask( const unsigned int z,
+                                     const unsigned int s,
+                                     const unsigned int mask)
+    {
+        // Objective: Reverse z = y ^ ( ( y << s ) & mask)
+        unsigned int ret = z;
+
+        // right most bits are not changed since the shift means they're xored with 0.
+        for (unsigned int i = s; i < CHAR_BIT*sizeof(unsigned int); ++i) {
+            // The bit at position i has been flipped if
+            // the starting value bit at [i - s] was set
+            // and the bit in mask[i] is set.
+            ret ^= (mask & ( 1 << i )) & (ret << s );
+        }
+
+        return ret;
+    }
+
+    unsigned int un_right_shift_mask( const unsigned int z,
+                                     const unsigned int s,
+                                     const unsigned int mask)
+    {
+        // Objective: Reverse z = y ^ ( ( y >> s ) & mask)
+        unsigned int ret = z;
+        const unsigned int nbit = CHAR_BIT*sizeof(unsigned int);
+        // left most bits are not changed since the shift means they're xored with 0.
+        for (unsigned int i = s; i < nbit; ++i) {
+            // The bit at position i has been flipped if
+            // the starting value bit at [i + s] was set
+            // and the bit in mask[i] is set.
+            ret ^= (mask & ( 1 << (nbit - 1 - i) )) & (ret >> s );
+        }
+
+        return ret;
+    }
+}
+unsigned int MerseneTwister19937::untemper(unsigned int y)
+{
+    // Un-Tempering.
+    // y ^= (y >> l);
+    y = un_right_shift_mask(y,l,w_mask);
+    // y ^= ((y << t) & c);
+    y = un_left_shift_mask(y, t, c);
+    //y ^= ((y << s) & b);
+    y = un_left_shift_mask(y, s, b);
+    // y ^= ((y >> u) & d);
+    y = un_right_shift_mask(y,u,d);
+
+    return y;
+}
 void MerseneTwister19937::twist()
 {
     for (unsigned int i = 0; i < n; ++i) {
