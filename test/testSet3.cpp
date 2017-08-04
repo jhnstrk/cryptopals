@@ -406,3 +406,165 @@ void TestSet3::testChallenge23()
     // - the generator used a hash before supplying the data.
     // If each output were hashed it would be impossible to reverse it => impossible to clone.
 }
+
+
+namespace {
+
+// Encapsulate MT1997 to spit out one byte at a time.
+class TwisterByteStream {
+public:
+    TwisterByteStream(unsigned int seed) :
+        m_sample(0), m_byte(4),m_twister(seed)
+    {}
+
+    unsigned char sample() {
+        if (m_byte >= 4) {
+            m_sample = m_twister.extract_number();
+            m_byte = 0;
+        }
+        const unsigned char ret = (m_sample >> m_byte ) & 0xFF;
+        ++m_byte;
+        return ret;
+    }
+
+private:
+    unsigned int m_sample;
+    unsigned int m_byte;
+    qossl::MerseneTwister19937 m_twister;
+};
+
+// Encode and Decode are same operation.
+QByteArray mt19937EncodeDecode(const QByteArray & plainText, unsigned int seed)
+{
+    QByteArray cipherText = plainText;
+    unsigned char * p = reinterpret_cast<unsigned char*>(cipherText.data());
+
+    TwisterByteStream twister(seed);
+
+    for (int i = 0; i< plainText.size(); ++i ) {
+        p[i] ^= (twister.sample() & 0xFF);
+    }
+    return cipherText;
+}
+
+// With a 16-bit seed, as specified.
+QByteArray mt19937EncodeDecode_16(const QByteArray & plainText, quint16 seed)
+{
+    return mt19937EncodeDecode(plainText, seed);
+}
+
+} // anon
+
+void TestSet3::testMt19937Cipher_data()
+{
+    QTest::addColumn<QByteArray>("plainText");
+    QTest::addColumn<unsigned int>("key");
+
+    QTest::newRow("Empty") << QByteArray() << (unsigned int) 1234;
+    QTest::newRow("1") << QByteArray("1") << (unsigned int) 0;
+    QTest::newRow("12") << QByteArray("12") << (unsigned int) 0;
+    QTest::newRow("1234") << QByteArray("1234") << (unsigned int) 0xFFFFFFFF;
+    QTest::newRow("asdf..") << QByteArray("asdfasdfsadfasdfasdfasdfasdfa") << (unsigned int) 0xFFFFFFFF;
+    QTest::newRow("a..1500") << QByteArray(1500,'a') << (unsigned int) 123;
+}
+
+void TestSet3::testMt19937Cipher()
+{
+    const QFETCH( QByteArray, plainText);
+    const QFETCH( unsigned int, key);
+
+    const QByteArray cipherText = mt19937EncodeDecode(plainText, key);
+
+    if (plainText.size() > 0) {
+        QVERIFY(cipherText != plainText);
+    }
+
+    const QByteArray recoveredPlain = mt19937EncodeDecode(cipherText, key);
+
+    QCOMPARE(recoveredPlain, plainText);
+}
+
+namespace {
+
+quint16 recoverKey(const QByteArray & cipherText, const QByteArray & plain, bool & ok)
+{
+
+    const QByteArray encodedPlain = cipherText.right(plain.size());
+
+    // xor to extract byte stream
+    const QByteArray keyStreamBytes = qossl::xorByteArray(encodedPlain, plain);
+
+    const int firstIx = cipherText.size() - plain.size();
+
+    // Brute force.
+    for (unsigned int i=0; i<0x10000; ++i) {
+        TwisterByteStream keyStream(i);
+        for (int j=0; j<firstIx; ++j) {
+            keyStream.sample();    // Dump first N samples
+        }
+        bool found = true;
+        for (int j=0; j<keyStreamBytes.size(); ++j) {
+            if (keyStream.sample() != (unsigned char)keyStreamBytes.at(j)) {
+                found = false;
+                break;
+            }
+        }
+
+        if (found) {
+            ok = true;
+            return (quint16)i;
+        }
+    }
+    ok = false;
+    return 0;
+}
+
+QByteArray makePasswordResetToken()
+{
+    TwisterByteStream stream(QDateTime::currentMSecsSinceEpoch() / 1000);
+    QByteArray randomBytes;
+    randomBytes.reserve(16);
+    for (int i=0; i<16; ++i) {
+        randomBytes.append((char)stream.sample());
+    }
+    return randomBytes;
+}
+
+bool isFromMtPRNGwithTime(const QByteArray & bytes, qint64 now = QDateTime::currentMSecsSinceEpoch() / 1000)
+{
+    TwisterByteStream stream(now);
+    for (int i =0; i<bytes.size(); ++i) {
+        if ((unsigned char)(bytes.at(i)) != stream.sample()) {
+            return false;
+        }
+    }
+    return true;
+}
+}
+
+
+void TestSet3::testChallenge24()
+{
+    QByteArray known('A', 14);
+    QByteArray plainText = qossl::randomBytes(qossl::randomUInt() % 1000) + known;
+
+    const quint16 key = qossl::randomUInt() & 0xFFFF;
+
+    const QByteArray cipherText = mt19937EncodeDecode_16(plainText, key);
+
+    bool ok = false;
+    const quint16 recoveredKey = recoverKey(cipherText, plainText, ok);
+
+    QCOMPARE(recoveredKey, key);
+    QVERIFY(ok);
+    qDebug() << "Key" << recoveredKey;
+
+    const QByteArray token = makePasswordResetToken();
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch() / 1000;
+    QVERIFY( isFromMtPRNGwithTime(token,now) || isFromMtPRNGwithTime(token, now -1));
+
+    QVERIFY(!isFromMtPRNGwithTime(QByteArray('a',16)));
+    QVERIFY(!isFromMtPRNGwithTime(token,now + 100));
+
+}

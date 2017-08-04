@@ -33,4 +33,10 @@ private slots:
 
     // Clone MT19937 by tapping its output.
     void testChallenge23();
+
+    // MT19937 stream cipher.
+    void testMt19937Cipher_data();
+    void testMt19937Cipher();
+
+    void testChallenge24();
 };
