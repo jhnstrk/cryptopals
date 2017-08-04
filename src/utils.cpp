@@ -340,6 +340,35 @@ namespace {
         b1[at + 7] = static_cast<char>((v >> 56) & 0xFF);
     }
 }
+
+QByteArray aesCtrKeyStream(const QByteArray & key, quint64 nonce, quint64 first, quint64 len)
+{
+    if (key.size() != AesBlockSize) {
+        qCritical() << "Bad key size";
+        return QByteArray();
+    }
+
+    QByteArray countblock = QByteArray(AesBlockSize,'\0');
+    copyUint64(countblock,0,nonce);
+    quint64 counter = first / qossl::AesBlockSize;
+
+    // lead-in: The offset within the first block.
+    const int leadin = (first - counter * qossl::AesBlockSize);
+
+    QByteArray keyStream;
+    keyStream.reserve(len + leadin);
+
+    for (int i = -leadin; i<(int)len; i+=AesBlockSize ) {
+        copyUint64(countblock,8,counter);
+        QByteArray ablock = aesEcbEncrypt(countblock,key);
+        keyStream.append(ablock);
+        ++counter;
+    }
+
+    return keyStream.mid(leadin,len);
+}
+
+
 QByteArray aesCtrEncrypt(const QByteArray & plainText, const QByteArray & key, quint64 nonce, quint64 count0)
 {
     if (key.size() != AesBlockSize) {
@@ -366,6 +395,26 @@ QByteArray aesCtrEncrypt(const QByteArray & plainText, const QByteArray & key, q
 QByteArray aesCtrDecrypt(const QByteArray & cipherText, const QByteArray & key, quint64 nonce, quint64 count0)
 {
     return aesCtrEncrypt(cipherText,key,nonce,count0);
+}
+
+bool aesCtrEdit(QByteArray &cipherText, const QByteArray &key, quint64 nonce, int offset, const QByteArray &newText)
+{
+    if (offset < 0) {
+        qWarning() << "Bad offset in aesCtrEdit" << offset;
+        return false;
+    }
+    
+    const QByteArray keyBytes = aesCtrKeyStream(key,nonce,offset,newText.length());
+
+    if (cipherText.size() < offset + newText.length()) {
+        cipherText.resize(offset + newText.length());
+    }
+
+    unsigned char * p = reinterpret_cast<unsigned char*>(cipherText.data());
+    for (int i=0; i<newText.length(); ++i) {
+        p[i+offset] = (unsigned char)newText.at(i) ^ (unsigned char)keyBytes.at(i);
+    }
+    return true;
 }
 
 QByteArray randomBytes(int len)
@@ -397,12 +446,26 @@ unsigned int randomUInt()
         unsigned int value;
         unsigned char bs[sizeof(unsigned int)];
     } ret;
-    const int status = RAND_bytes(ret.bs, sizeof(ret.bs));
+    const int status = RAND_bytes(ret.bs, sizeof(unsigned int));
     if (status != 1) {
         qWarning() << "Random bytes not available";
     }
     return ret.value;
 }
+
+quint64 randomUInt64()
+{
+    union {
+        quint64 value;
+        unsigned char bs[sizeof(quint64)];
+    } ret;
+    const int status = RAND_bytes(ret.bs, sizeof(quint64));
+    if (status != 1) {
+        qWarning() << "Random bytes not available";
+    }
+    return ret.value;
+}
+
 
 QByteArray randomAesKey(){
     return randomBytes(AesBlockSize);

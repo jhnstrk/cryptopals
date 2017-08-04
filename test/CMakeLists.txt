@@ -6,6 +6,7 @@ set( ${PROJECT_NAME}_HEADERS_MOC
   testSet1.h
   testSet2.h
   testSet3.h
+  testSet4.h
   )
 
 set( ${PROJECT_NAME}_HEADERS
@@ -17,6 +18,7 @@ set( ${PROJECT_NAME}_MAIN_SOURCES
   testSet1.cpp
   testSet2.cpp
   testSet3.cpp
+  testSet4.cpp
   )
 
 set( ${PROJECT_NAME}_SOURCES 
