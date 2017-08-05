@@ -16,6 +16,8 @@ namespace qossl {
         virtual void raise() const Q_DECL_OVERRIDE { throw *this; }
         virtual QException *clone() const Q_DECL_OVERRIDE { return new RuntimeException(*this); }
         virtual const char* what() const Q_DECL_OVERRIDE throw() { return m_what.constData(); }
+
+        const QByteArray & whatBytes() const throw() { return m_what; }
     private:
         QByteArray m_what;
     };

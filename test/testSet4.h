@@ -16,4 +16,8 @@ private slots:
 
     // AES CTR: bit flipping
     void testChallenge26();
+
+    // AES CBC: Recover key when key == iv.
+    void testChallenge27();
+
 };

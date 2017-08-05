@@ -133,3 +133,115 @@ void TestSet4::testChallenge26()
     QVERIFY(obj.isAdmin(tampered));
 }
 
+
+class Challenge27 {
+public:
+    Challenge27() : m_key(qossl::randomAesKey())
+    {
+        m_iv = m_key;  // Repurpose key as IV (bad).
+    }
+
+    // First func
+    QByteArray encode(const QByteArray & userdata) const {
+
+        QByteArray d1 = userdata;
+        d1 = d1.replace('%', "%25");
+        d1 = d1.replace(';', "%3B");
+        d1 = d1.replace('=', "%3D");
+        d1 = QByteArray("comment1=cooking%20MCs;userdata=")
+             + d1
+             + QByteArray(";comment2=%20like%20a%20pound%20of%20bacon");
+
+        if (!this->isAscii(d1)) {
+            throw qossl::RuntimeException("Bad plaintext:" + d1);
+        }
+        d1 = qossl::pkcs7Pad(d1,qossl::AesBlockSize);
+
+        d1 = qossl::aesCbcEncrypt(d1,m_key,m_iv);
+        return d1;
+    }
+
+    bool isAdmin(const QByteArray & encrypted) const {
+        QByteArray dec = qossl::aesCbcDecrypt(encrypted, m_key, m_iv);
+
+        if (!this->isAscii(dec)) {
+            throw qossl::RuntimeException("Bad plaintext:" + dec);
+        }
+
+        dec = qossl::pkcs7Unpad(dec);
+
+        QList<QByteArray> split = dec.split(';');
+        foreach (const QByteArray & item, split) {
+            const int ix = item.indexOf('=');
+            if (ix == -1) {
+                continue;
+            }
+            QByteArray key = item.mid(0,ix);
+            QByteArray value = item.mid(ix + 1);
+            if (key == "admin") {
+                return value == "true";
+            }
+        }
+        return false;
+    }
+
+    static bool isAscii(const QByteArray & data)
+    {
+        if (data.isEmpty()) {
+            return true;
+        }
+
+        foreach (const char c, data) {
+            if ((c & 0x80) != 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool isKey(const QByteArray & key) const
+    {
+        return key == m_key;
+    }
+private:
+    QByteArray m_key, m_iv;
+};
+
+void TestSet4::testChallenge27()
+{
+    const QByteArray userdata = "JUMPIN JACK FLAS";
+
+    Challenge27 obj;
+    const QByteArray regular = obj.encode(userdata);
+    QVERIFY(!obj.isAdmin(regular));
+
+    const QByteArray block1 = regular.mid(0,qossl::AesBlockSize);
+    const QByteArray block3 = regular.mid(2*qossl::AesBlockSize,qossl::AesBlockSize);
+
+    // C_1 + 0 + C_1
+    const QByteArray tampered = block1 + QByteArray(qossl::AesBlockSize,'\0') + block1;
+
+    // Attempt decryption, which is almost certain to throw an error.
+    QByteArray message;
+    try {
+        obj.isAdmin(tampered);
+    }
+    catch (qossl::RuntimeException & e) {
+        qDebug() << "Caught Exception" << e.whatBytes();
+        message = e.whatBytes();
+    }
+
+    // Remove error string, leave plain text
+    const int prefixLen = message.indexOf(':') + 1;
+    QVERIFY(prefixLen >= 0);
+    message = message.mid(prefixLen);
+
+    // Extract blocks and recover key.
+    const QByteArray pdash_1 = message.mid(0,qossl::AesBlockSize);
+    const QByteArray pdash_3 = message.mid(2*qossl::AesBlockSize,qossl::AesBlockSize);
+    const QByteArray key = qossl::xorByteArray(pdash_1, pdash_3);
+
+    // Check key validity.
+    QVERIFY(obj.isKey(key));
+}
