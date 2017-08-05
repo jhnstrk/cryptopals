@@ -1,6 +1,7 @@
 #include "testSet4.h"
 
 #include <utils.h>
+#include "sha_1.h"
 
 #include <QByteArray>
 #include <QDebug>
@@ -245,3 +246,31 @@ void TestSet4::testChallenge27()
     // Check key validity.
     QVERIFY(obj.isKey(key));
 }
+
+void TestSet4::testSha1_data()
+{
+    QTest::addColumn<QByteArray>("text");
+    QTest::addColumn<QByteArray>("hash");
+
+    QTest::newRow("Empty") << QByteArray() << QByteArray::fromHex("da39a3ee5e6b4b0d3255bfef95601890afd80709");
+    QTest::newRow("A") << QByteArray("A") << QByteArray::fromHex("6dcd4ce23d88e2ee9568ba546c007c63d9131c1b");
+    QTest::newRow("Fox1") << QByteArray("The quick brown fox jumps over the lazy dog")
+                          << QByteArray::fromHex("2fd4e1c67a2d28fced849ee1bb76e7391b93eb12");
+    QTest::newRow("Fox2") << QByteArray("The quick brown fox jumps over the lazy cog")
+                          << QByteArray::fromHex("de9f2c7fd25e1b3afad3e85a0bd17d9b100db4b3");
+    QTest::newRow("Longer") << QByteArray("asdfasdfasdfasdfasdfasdfasdfasdfsadfasd"
+             "fasdfasdfasdfasdflkjhlkhjopuyooiuh;wqjerkjqnrlkjbqwerqwrsadfavds")
+                           << QByteArray::fromHex("746787344a16e144b4ce5547327b26d5c46f478d");
+
+}
+
+void TestSet4::testSha1()
+{
+    const QFETCH( QByteArray, text);
+    const QFETCH( QByteArray, hash);
+
+    const QByteArray actual = qossl::Sha1::hash(text);
+
+    QCOMPARE(actual.toHex(), hash.toHex());
+
+    }

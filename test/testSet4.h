@@ -20,4 +20,7 @@ private slots:
     // AES CBC: Recover key when key == iv.
     void testChallenge27();
 
+    // 28: Sha1
+    void testSha1_data();
+    void testSha1();
 };

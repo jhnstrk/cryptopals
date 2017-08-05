@@ -328,6 +328,7 @@ QByteArray aesCbcEncrypt(const QByteArray &plainText, const QByteArray &key, con
 }
 
 namespace {
+// Littleendian copy.
     void copyUint64(QByteArray & b1, int at, quint64 v)
     {
         b1[at] = static_cast<char>(v & 0xFF);
