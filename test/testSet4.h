@@ -13,4 +13,7 @@ private slots:
     // AES CTR, random access
     void testCtrEdit();
     void testChallenge25();
+
+    // AES CTR: bit flipping
+    void testChallenge26();
 };
