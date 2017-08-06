@@ -25,4 +25,8 @@ private slots:
     void testSha1();
 
     void testChallenge28();
+
+    // Sha length extension attack
+    void testChallenge29_1();
+    void testChallenge29_2();
 };

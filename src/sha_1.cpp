@@ -1,51 +1,11 @@
 #include "sha_1.h"
+#include "bitsnbytes.h"
 #include <QDebug>
 
 namespace {
 
 
     const int worklen = 80;
-    const int blockSize = 512/8;  // 512 bits
-
-    // extract bit endian v from bytestream
-    quint32 uint32_from_be(const unsigned char * p)
-    {
-        return (((quint32)p[0]) << 24) |
-                (((quint32)p[1]) << 16) |
-                (((quint32)p[2]) << 8) |
-                (((quint32)p[3]));
-    }
-
-    // NOT safe if n == 0 || n >= 32.
-    quint32 leftrotate(quint32 v, unsigned int n){
-        return (v << n) | (v >> (32-n));
-    }
-
-    QByteArray uint64Be( const quint64 v)
-    {
-        QByteArray ret(8,'\0');
-        char * pdata = ret.data();
-        pdata[0] = static_cast<char>((v >> 56) & 0xFF);
-        pdata[1] = static_cast<char>((v >> 48) & 0xFF);
-        pdata[2] = static_cast<char>((v >> 40) & 0xFF);
-        pdata[3] = static_cast<char>((v >> 32) & 0xFF);
-        pdata[4] = static_cast<char>((v >> 24) & 0xFF);
-        pdata[5] = static_cast<char>((v >> 16) & 0xFF);
-        pdata[6] = static_cast<char>((v >> 8) & 0xFF);
-        pdata[7] = static_cast<char>(v & 0xFF);
-        return ret;
-    }
-
-    QByteArray uint32Be( const quint32 v)
-    {
-        QByteArray ret(4,'\0');
-        char * pdata = ret.data();
-        pdata[0] = static_cast<char>((v >> 24) & 0xFF);
-        pdata[1] = static_cast<char>((v >> 16) & 0xFF);
-        pdata[2] = static_cast<char>((v >> 8) & 0xFF);
-        pdata[3] = static_cast<char>(v & 0xFF);
-        return ret;
-    }
 }
 
 namespace qossl {
@@ -54,6 +14,19 @@ namespace qossl {
 Sha1::Sha1() : m_count(0)
 {
     this->initialize();
+}
+
+Sha1::Sha1(quint32 a, quint32 b, quint32 c, quint32 d, quint32 e, quint64 count)
+    :m_count(count)
+{
+    this->initialize();
+    m_h0 = a;
+    m_h1 = b;
+    m_h2 = c;
+    m_h3 = d;
+    m_h4 = e;
+
+    m_count = count;
 }
 
 Sha1::~Sha1()
@@ -86,7 +59,7 @@ void Sha1::addData(const QByteArray &data)
     m_count += data.size();
 
     // less then a block
-    if (m_buffer.size() + data.size() < blockSize) {
+    if (m_buffer.size() + data.size() < BlockSizeBytes) {
         m_buffer.append(data);
         return;
     }
@@ -94,16 +67,16 @@ void Sha1::addData(const QByteArray &data)
     int dataIndex = 0;
     if (!m_buffer.isEmpty()) {
         // fill buffer
-        dataIndex = blockSize - m_buffer.size();
+        dataIndex = BlockSizeBytes - m_buffer.size();
         m_buffer.append(data.mid(0,dataIndex));
         this->addBlock(m_buffer,0);
     }
 
-    int end = dataIndex + blockSize;
+    int end = dataIndex + BlockSizeBytes;
     while (end <= data.size()) {
         this->addBlock(data, dataIndex);
         dataIndex = end;
-        end += blockSize;
+        end += BlockSizeBytes;
     }
 
     m_buffer = data.mid(dataIndex);
@@ -112,12 +85,12 @@ void Sha1::addData(const QByteArray &data)
 QByteArray Sha1::finalize()
 {
     m_buffer.append((char)0x80);
-    if (m_buffer.size() <= (blockSize - 8) ) {
-        m_buffer.append( QByteArray((blockSize - 8) - m_buffer.size(),'\0'));
+    if (m_buffer.size() <= (BlockSizeBytes - 8) ) {
+        m_buffer.append( QByteArray((BlockSizeBytes - 8) - m_buffer.size(),'\0'));
     } else {
-        m_buffer.append( QByteArray(blockSize - m_buffer.size(),'\0'));
+        m_buffer.append( QByteArray(BlockSizeBytes - m_buffer.size(),'\0'));
         this->addBlock(m_buffer,0);
-        m_buffer = QByteArray((blockSize - 8),'\0');
+        m_buffer = QByteArray((BlockSizeBytes - 8),'\0');
     }
 
     // Message length in bits
@@ -134,7 +107,7 @@ QByteArray Sha1::finalize()
 
 void Sha1::addBlock(const QByteArray &data, int index)
 {
-    if (index + blockSize > data.size() ) {
+    if (index + BlockSizeBytes > data.size() ) {
         qCritical() << "Bad block size" << data.size() << index;
     }
 

@@ -2,6 +2,7 @@
 
 #include <utils.h>
 #include "sha_1.h"
+#include "bitsnbytes.h"
 
 #include <QByteArray>
 #include <QDebug>
@@ -317,4 +318,100 @@ void TestSet4::testChallenge28()
     // Wrong key:: Not valid.
     Sha1Mac badmaccer("BadGuess");
     QVERIFY(!badmaccer.isValid(mac,message));
+}
+
+namespace {
+QByteArray computeSha1Padding(int messageLenBytes) {
+
+    const int BlockSizeBytes = qossl::Sha1::BlockSizeBytes;
+    const int remaining = (messageLenBytes + 1) % BlockSizeBytes;
+
+    QByteArray ret;
+    ret.append((char)0x80);
+    if (remaining <= (BlockSizeBytes - 8) ) {
+        ret.append( QByteArray((BlockSizeBytes - 8) - remaining,'\0'));
+    } else {
+        ret.append(QByteArray(BlockSizeBytes - remaining,'\0'));
+        ret.append(QByteArray((BlockSizeBytes - 8),'\0'));
+    }
+
+    // Message length in bits
+    ret.append( qossl::uint64Be(quint64(messageLenBytes) * CHAR_BIT) );
+
+    return ret;
+}
+
+void splitHash(const QByteArray & hash, quint32 & a, quint32 & b, quint32 & c, quint32 & d, quint32 & e)
+{
+    if (hash.size() != 20) {
+        throw qossl::RuntimeException("Bad hash size" + QByteArray::number(hash.size()));
+    }
+    
+    using namespace qossl;
+    const unsigned char * p = reinterpret_cast<const unsigned char *>(hash.constData());
+    a = uint32_from_be(p);
+    b = uint32_from_be(p+4);
+    c = uint32_from_be(p+8);
+    d = uint32_from_be(p+12);
+    e = uint32_from_be(p+16);
+    return;
+}
+}
+
+
+void TestSet4::testChallenge29_1()
+{
+    //1. Check it works when I know the secret.
+    const QByteArray theSecret = "MySecret";
+    Sha1Mac maccer(theSecret);
+    const QByteArray message = "comment1=cooking%20MCs;userdata=foo;comment2=%20like%20a%20pound%20of%20bacon";
+    const QByteArray mac = maccer.mac(message);
+
+    quint32 a,b,c,d,e;
+    splitHash(mac,a,b,c,d,e);
+    
+    const QByteArray gluePadding = computeSha1Padding(theSecret.length() + message.length());
+    const quint64 count0 = theSecret.length() + message.length() + gluePadding.length();
+
+    const QByteArray tamperData = ";admin=1";
+
+    qossl::Sha1 extendSha1(a,b,c,d,e,count0);
+    extendSha1.addData(tamperData);
+    const QByteArray tamperMac = extendSha1.finalize();
+
+    const QByteArray tamperMessage = message + gluePadding + tamperData;
+    QVERIFY(maccer.isValid(tamperMac, tamperMessage));
+}
+
+void TestSet4::testChallenge29_2()
+{
+    //2. With a random, unknown key
+    const QByteArray theSecret = qossl::randomBytes(6 + (qossl::randomUChar() % 20)).toBase64();
+    Sha1Mac maccer(theSecret);
+    const QByteArray message = "comment1=cooking%20MCs;userdata=foo;comment2=%20like%20a%20pound%20of%20bacon";
+    const QByteArray mac = maccer.mac(message);
+
+    quint32 a,b,c,d,e;
+    splitHash(mac,a,b,c,d,e);
+
+    QByteArray tamperMac, tamperMessage;
+
+    // Iterate over the key length until we find the right one.
+    for (int guessLen = 0; guessLen < 50; ++guessLen) {
+        const QByteArray gluePadding = computeSha1Padding(guessLen + message.length());
+        const quint64 count0 = guessLen + message.length() + gluePadding.length();
+
+        const QByteArray tamperData = ";admin=1";
+
+        qossl::Sha1 extendSha1(a,b,c,d,e,count0);
+        extendSha1.addData(tamperData);
+        tamperMac = extendSha1.finalize();
+
+        tamperMessage = message + gluePadding + tamperData;
+        if (maccer.isValid(tamperMac, tamperMessage)) {
+            qDebug() << "Secret length is" << guessLen;
+            break;
+        }
+    }
+    QVERIFY(maccer.isValid(tamperMac, tamperMessage));
 }

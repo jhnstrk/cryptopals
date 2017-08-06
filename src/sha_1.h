@@ -7,7 +7,13 @@ namespace qossl {
 
 class Sha1 {
 public:
+    static const int BlockSizeBytes = 512/8;  // 512 bits
+
     Sha1();
+
+    // Constructor for 'extension' attacks.
+    Sha1(quint32 a, quint32 b, quint32 c,quint32 d,quint32 e, quint64 count);
+
     ~Sha1();
 
     static QByteArray hash(const QByteArray & data);
