@@ -29,4 +29,8 @@ private slots:
     // Sha length extension attack
     void testChallenge29_1();
     void testChallenge29_2();
+
+    // 30: Md4
+    void testMd4_data();
+    void testMd4();
 };

@@ -2,9 +2,10 @@
 #include "bitsnbytes.h"
 #include <QDebug>
 
+// Implementation:
+// Ref: Wikipedia
+
 namespace {
-
-
     const int worklen = 80;
 }
 

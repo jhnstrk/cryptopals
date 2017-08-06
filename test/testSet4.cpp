@@ -2,6 +2,7 @@
 
 #include <utils.h>
 #include "sha_1.h"
+#include "md4.h"
 #include "bitsnbytes.h"
 
 #include <QByteArray>
@@ -414,4 +415,29 @@ void TestSet4::testChallenge29_2()
         }
     }
     QVERIFY(maccer.isValid(tamperMac, tamperMessage));
+}
+
+void TestSet4::testMd4_data()
+{
+    QTest::addColumn<QByteArray>("text");
+    QTest::addColumn<QByteArray>("hash");
+
+    // From https://tools.ietf.org/html/rfc1320
+    QTest::newRow("Empty") << QByteArray() << QByteArray::fromHex("31d6cfe0d16ae931b73c59d7e0c089c0");
+    QTest::newRow("a") << QByteArray("a") << QByteArray::fromHex("bde52cb31de33e46245e05fbdbd6fb24");
+    QTest::newRow("abc") << QByteArray("abc") << QByteArray::fromHex("a448017aaf21d8525fc10ae87aa6729d");
+    QTest::newRow("message digest") << QByteArray("message digest") << QByteArray::fromHex("d9130a8164549fe818874806e1c7014b");
+    QTest::newRow("abc..z") << QByteArray("abcdefghijklmnopqrstuvwxyz") << QByteArray::fromHex("d79e1c308aa5bbcdeea8ed63df412da9");
+    QTest::newRow("a-zA-Z0-9") << QByteArray("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789") << QByteArray::fromHex("043f8582f241db351ce627e153e7f0e4");
+    QTest::newRow("123....") << QByteArray("12345678901234567890123456789012345678901234567890123456789012345678901234567890") << QByteArray::fromHex("e33b4ddc9c38f2199c3e7b164fcc0536");
+}
+
+void TestSet4::testMd4()
+{
+const QFETCH( QByteArray, text);
+const QFETCH( QByteArray, hash);
+
+const QByteArray actual = qossl::Md4::hash(text);
+
+QCOMPARE(actual.toHex(), hash.toHex());
 }
