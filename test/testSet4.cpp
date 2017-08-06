@@ -272,5 +272,49 @@ void TestSet4::testSha1()
     const QByteArray actual = qossl::Sha1::hash(text);
 
     QCOMPARE(actual.toHex(), hash.toHex());
+}
 
+
+namespace {
+
+class Sha1Mac {
+public:
+    Sha1Mac(const QByteArray & key) : m_key(key) {}
+    ~Sha1Mac() {}
+
+    QByteArray mac(const QByteArray & message) const {
+        qossl::Sha1 hasher;
+        hasher.addData(m_key);
+        hasher.addData(message);
+        return hasher.finalize();
     }
+
+    bool isValid(const QByteArray & testmac, const QByteArray & message) const
+    {
+        return this->mac(message) == testmac;
+    }
+
+private:
+    QByteArray m_key;
+};
+}
+
+void TestSet4::testChallenge28()
+{
+    Sha1Mac maccer("MySecret");
+
+    const QByteArray message = "The quick brown fox jumps over the lazy dog";
+
+    const QByteArray mac = maccer.mac(message);
+
+    // Correct mac validates the message.
+    QVERIFY(maccer.isValid(mac,message));
+
+    // Wrong message: Not valid.
+    const QByteArray tamperMessage = "The slow brown fox jumps over the lazy dog";
+    QVERIFY(!maccer.isValid(mac,tamperMessage));
+
+    // Wrong key:: Not valid.
+    Sha1Mac badmaccer("BadGuess");
+    QVERIFY(!badmaccer.isValid(mac,message));
+}

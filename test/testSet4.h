@@ -23,4 +23,6 @@ private slots:
     // 28: Sha1
     void testSha1_data();
     void testSha1();
+
+    void testChallenge28();
 };
