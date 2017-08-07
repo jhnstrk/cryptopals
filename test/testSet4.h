@@ -36,4 +36,10 @@ private slots:
 
     // Md4 length extension.
     void testChallenge30();
+
+    // 31: HMAC
+    void testHmacSha1_data();
+    void testHmacSha1();
+
+    void testChallenge31();
 };

@@ -54,19 +54,20 @@ namespace qossl {
 
 Md4::Md4() : m_count(0)
 {
-    this->initialize();
+    this->reset();
 }
 
 Md4::Md4(quint32 a, quint32 b, quint32 c, quint32 d, quint64 count)
     :m_count(count)
 {
-    this->initialize();
+    this->reset();
     m_a = a;
     m_b = b;
     m_c = c;
     m_d = d;
 
     m_count = count;
+    m_buffer.clear();
 }
 
 Md4::~Md4()
@@ -82,7 +83,7 @@ QByteArray Md4::hash(const QByteArray &data)
     return obj.finalize();
 }
 
-void Md4::initialize() {
+void Md4::reset() {
     m_work.resize(worklen);
 
     m_a = 0x67452301u;

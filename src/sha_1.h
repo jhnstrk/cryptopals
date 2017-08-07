@@ -8,6 +8,7 @@ namespace qossl {
 class Sha1 {
 public:
     static const int BlockSizeBytes = 512/8;  // 512 bits
+    static const int HashSizeBytes = 20;
 
     Sha1();
 
@@ -22,9 +23,9 @@ public:
 
     // Return hash
     QByteArray finalize();
-private:
 
-    void initialize();
+    void reset();
+private:
 
     // Exactly 512 bits (64 bytes) are taken from data;
     void addBlock(const QByteArray & data, int index);

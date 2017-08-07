@@ -11,16 +11,15 @@ namespace {
 
 namespace qossl {
 
-
 Sha1::Sha1() : m_count(0)
 {
-    this->initialize();
+    this->reset();
 }
 
 Sha1::Sha1(quint32 a, quint32 b, quint32 c, quint32 d, quint32 e, quint64 count)
     :m_count(count)
 {
-    this->initialize();
+    this->reset();
     m_h0 = a;
     m_h1 = b;
     m_h2 = c;
@@ -43,7 +42,7 @@ QByteArray Sha1::hash(const QByteArray &data)
     return obj.finalize();
 }
 
-void Sha1::initialize() {
+void Sha1::reset() {
     m_work.resize(worklen);
 
     m_h0 = 0x67452301u;
@@ -53,6 +52,7 @@ void Sha1::initialize() {
     m_h4 = 0xC3D2E1F0u;
 
     m_count = 0;
+    m_buffer.clear();
 }
 
 void Sha1::addData(const QByteArray &data)

@@ -16,7 +16,7 @@ namespace qossl {
 
 QByteArray xorByteArray(const QByteArray & src, const QByteArray & key)
 {
-    if (key.size() == 0) {
+    if ( (key.size() == 0) || (src.size() == 0) ) {
         return src;
     }
 
@@ -29,6 +29,20 @@ QByteArray xorByteArray(const QByteArray & src, const QByteArray & key)
     return result;
 }
 
+QByteArray xorByteArray(const QByteArray & src, const unsigned char c)
+{
+    if (src.size() == 0) {
+        return src;
+    }
+
+    QByteArray result;
+    result.resize(src.size());
+
+    for (int i=0; i<src.size(); ++i) {
+        result[i] = ((unsigned char)src.at(i)) ^ c;
+    }
+    return result;
+}
 
 // Method:
 // Make a histogram of character frequencies (counts).

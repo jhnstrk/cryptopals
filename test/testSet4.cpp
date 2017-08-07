@@ -4,9 +4,13 @@
 #include "sha_1.h"
 #include "md4.h"
 #include "bitsnbytes.h"
+#include "hmac.h"
 
 #include <QByteArray>
 #include <QDebug>
+#include <QElapsedTimer>
+#include <QThread>
+
 #include "test.h"
 
 JDS_ADD_TEST(TestSet4)
@@ -274,6 +278,7 @@ void TestSet4::testSha1()
     const QByteArray actual = qossl::Sha1::hash(text);
 
     QCOMPARE(actual.toHex(), hash.toHex());
+    QCOMPARE(actual.size(), (int)qossl::Sha1::HashSizeBytes);
 }
 
 
@@ -442,6 +447,7 @@ const QFETCH( QByteArray, hash);
 const QByteArray actual = qossl::Md4::hash(text);
 
 QCOMPARE(actual.toHex(), hash.toHex());
+QCOMPARE(actual.size(), (int)qossl::Md4::HashSizeBytes);
 }
 
 // ----------------------------------------------------------------------------
@@ -537,4 +543,158 @@ void TestSet4::testChallenge30()
     QVERIFY(maccer.isValid(tamperMac, tamperMessage));
     qDebug() << "Tampered mac:" << tamperMac.toBase64()
              << "Tampered message: " << tamperMessage;
+}
+
+void TestSet4::testHmacSha1_data()
+{
+    QTest::addColumn<QByteArray>("key");
+    QTest::addColumn<QByteArray>("data");
+    QTest::addColumn<QByteArray>("hash");
+
+    // From Wikipedia
+    QTest::newRow("Empty") << QByteArray() << QByteArray() << QByteArray::fromHex("fbdb1d1b18aa6c08324b7d64b71fb76370690e1d");
+    QTest::newRow("key,fox")
+            << QByteArray("key")
+            << QByteArray("The quick brown fox jumps over the lazy dog")
+            << QByteArray::fromHex("de7c9b85b8b78aa6bc8a7a36f70a90701c9db4d9");
+}
+
+void TestSet4::testHmacSha1()
+{
+    const QFETCH( QByteArray, key);
+    const QFETCH( QByteArray, data);
+    const QFETCH( QByteArray, hash);
+
+    const QByteArray actual = qossl::hmacSha1(key,data);
+
+    QCOMPARE(actual.toHex(), hash.toHex());
+}
+
+
+namespace {
+
+    class FakeServer {
+    public:
+        FakeServer() : m_key(qossl::randomBytes(16).toBase64()), m_sleep(5) {}
+
+        int request(const QByteArray & file, const QByteArray & signature) const {
+            const QByteArray expected = this->expectedSig(file);
+            if (!insecure_compare(signature, expected)) {
+                return 500; // invalid MAC.
+            }
+            return 200; // OK
+        }
+
+        QByteArray expectedSig(const QByteArray & file) const {
+            return qossl::hmacSha1(m_key, file);
+        }
+    private:
+        bool insecure_compare(const QByteArray & left, const QByteArray & right) const
+        {
+            if (left.length() != right.length()) {
+                return false;
+            }
+
+            const int len = left.length();
+            for (int i=0; i<len; ++i) {
+                if (left.at(i) != right.at(i)) {
+                    return false;
+                }
+                QThread::msleep(m_sleep);
+            }
+            return true;
+        }
+
+    private:
+        QByteArray m_key;
+        const unsigned long m_sleep;
+    };
+
+
+    // Hacker side:
+
+    class HmacAttack {
+    public:
+        HmacAttack( const FakeServer & server, const QByteArray & file ) :
+            m_server(server), m_file(file) {}
+
+        QByteArray deduceValidMac()
+        {
+            QByteArray mac;
+
+            QVector<qint64> guessTimes;
+            guessTimes.resize(m_signatureSize);
+
+            for (int i=0; i<m_signatureSize; ++i) {
+                QElapsedTimer timer;
+                timer.start();
+                mac += attackChar(mac);
+                const qint64 eTime = timer.nsecsElapsed();
+                qDebug() << mac.toHex() << "etime" << eTime;
+                guessTimes[i] = eTime;
+                const quint64 thresh = 2LL * 255LL * 1000000LL;  // 2ms, 255 attempts.
+                if (i == 0) {
+                    //
+                } else if ( (eTime - (thresh)) <  guessTimes.at(i-1)) {
+                    qDebug() << "Re re wind.";
+                    mac = mac.left(i - 2);
+                    i -= 3;
+                    if (i < 0) i = -1;
+                }
+            }
+            return mac;
+        }
+
+        char attackChar(const QByteArray & prefix)
+        {
+            const int at=prefix.length();
+            if (at > m_signatureSize) {
+                return 0;
+            }
+
+            QByteArray test( prefix +
+                             QByteArray(m_signatureSize - prefix.length(),'\0') );
+
+            char * pdata = test.data();
+            qint64 maxtime = 0;
+            int best = 0;
+
+            for (int c=0; c<256; ++c) {
+                pdata[at] = static_cast<char>(c);
+                m_timer.restart();
+                m_server.request(m_file,test);
+                const qint64 elapsed = m_timer.nsecsElapsed();
+                if (c == 0) {
+                    maxtime = elapsed;
+                } else if(maxtime < elapsed) {
+                    maxtime = elapsed;
+                    best = c;
+                }
+            }
+            return static_cast<char>(best);
+        }
+
+    private:
+        const FakeServer & m_server;
+        const QByteArray & m_file;
+        QElapsedTimer m_timer;
+        static const int m_signatureSize = qossl::Sha1::HashSizeBytes;
+    };
+
+
+}
+void TestSet4::testChallenge31()
+{
+    FakeServer theServer;
+
+    const QByteArray testFile = "/etc/passwd";
+    HmacAttack attacker(theServer, testFile);
+
+    qDebug() << theServer.expectedSig(testFile).toHex();
+
+    QByteArray attackSig = attacker.deduceValidMac();
+
+    QCOMPARE( theServer.request(testFile, attackSig), 200);
+
+    qDebug() << "Signature:" << attackSig;
 }

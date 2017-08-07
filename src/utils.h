@@ -34,6 +34,7 @@ namespace qossl {
     enum { AesBlockSize = 16 };
 
     QByteArray xorByteArray(const QByteArray & src, const QByteArray & key);
+    QByteArray xorByteArray(const QByteArray & src, const unsigned char c);
 
     // A simple score for plain ASCII English text.
     // higher is better, range is 0 to 1.
