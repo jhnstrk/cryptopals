@@ -415,6 +415,8 @@ void TestSet4::testChallenge29_2()
         }
     }
     QVERIFY(maccer.isValid(tamperMac, tamperMessage));
+    qDebug() << "Tampered mac:" << tamperMac.toBase64()
+             << "Tampered message: " << tamperMessage;
 }
 
 void TestSet4::testMd4_data()
@@ -440,4 +442,99 @@ const QFETCH( QByteArray, hash);
 const QByteArray actual = qossl::Md4::hash(text);
 
 QCOMPARE(actual.toHex(), hash.toHex());
+}
+
+// ----------------------------------------------------------------------------
+// MD4
+namespace {
+
+class Md4Mac {
+public:
+    Md4Mac(const QByteArray & key) : m_key(key) {}
+    ~Md4Mac() {}
+
+    QByteArray mac(const QByteArray & message) const {
+        qossl::Md4 hasher;
+        hasher.addData(m_key);
+        hasher.addData(message);
+        return hasher.finalize();
+    }
+
+    bool isValid(const QByteArray & testmac, const QByteArray & message) const
+    {
+        return this->mac(message) == testmac;
+    }
+
+private:
+    QByteArray m_key;
+};
+
+QByteArray computeMd4Padding(int messageLenBytes) {
+
+    const int BlockSizeBytes = qossl::Md4::BlockSizeBytes;
+    const int remaining = (messageLenBytes + 1) % BlockSizeBytes;
+
+    QByteArray ret;
+    ret.append((char)0x80);
+    if (remaining <= (BlockSizeBytes - 8) ) {
+        ret.append( QByteArray((BlockSizeBytes - 8) - remaining,'\0'));
+    } else {
+        ret.append(QByteArray(BlockSizeBytes - remaining,'\0'));
+        ret.append(QByteArray((BlockSizeBytes - 8),'\0'));
+    }
+
+    // Message length in bits
+    ret.append( qossl::uint64Le(quint64(messageLenBytes) * CHAR_BIT) );
+
+    return ret;
+}
+
+void splitMd4Hash(const QByteArray & hash, quint32 & a, quint32 & b, quint32 & c, quint32 & d)
+{
+    if (hash.size() != 16) {
+        throw qossl::RuntimeException("Bad hash size" + QByteArray::number(hash.size()));
+    }
+
+    using namespace qossl;
+    const unsigned char * p = reinterpret_cast<const unsigned char *>(hash.constData());
+    a = uint32_from_le(p);
+    b = uint32_from_le(p+4);
+    c = uint32_from_le(p+8);
+    d = uint32_from_le(p+12);
+    return;
+}
+}
+
+void TestSet4::testChallenge30()
+{
+    const QByteArray theSecret = qossl::randomBytes(6 + (qossl::randomUChar() % 20)).toBase64();
+    Md4Mac maccer(theSecret);
+    const QByteArray message = "comment1=cooking%20MCs;userdata=foo;comment2=%20like%20a%20pound%20of%20bacon";
+    const QByteArray mac = maccer.mac(message);
+
+    quint32 a,b,c,d;
+    splitMd4Hash(mac,a,b,c,d);
+
+    QByteArray tamperMac, tamperMessage;
+
+    // Iterate over the key length until we find the right one.
+    for (int guessLen = 0; guessLen < 50; ++guessLen) {
+        const QByteArray gluePadding = computeMd4Padding(guessLen + message.length());
+        const quint64 count0 = guessLen + message.length() + gluePadding.length();
+
+        const QByteArray tamperData = ";admin=1";
+
+        qossl::Md4 extendMd4(a,b,c,d,count0);
+        extendMd4.addData(tamperData);
+        tamperMac = extendMd4.finalize();
+
+        tamperMessage = message + gluePadding + tamperData;
+        if (maccer.isValid(tamperMac, tamperMessage)) {
+            qDebug() << "Secret length is" << guessLen;
+            break;
+        }
+    }
+    QVERIFY(maccer.isValid(tamperMac, tamperMessage));
+    qDebug() << "Tampered mac:" << tamperMac.toBase64()
+             << "Tampered message: " << tamperMessage;
 }

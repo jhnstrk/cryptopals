@@ -33,4 +33,7 @@ private slots:
     // 30: Md4
     void testMd4_data();
     void testMd4();
+
+    // Md4 length extension.
+    void testChallenge30();
 };
