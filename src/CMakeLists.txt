@@ -16,6 +16,7 @@ set( ${PROJECT_NAME}_HEADERS
   hmac.h
   md4.h
   mersene_twister.h
+  qbigint.h
   sha_1.h
   utils.h
 )
@@ -33,6 +34,7 @@ add_library( qossl SHARED
   utils.cpp
   md4.cpp
   mersene_twister.cpp
+  qbigint.cpp
   sha_1.cpp
   )
 

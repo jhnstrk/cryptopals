@@ -632,7 +632,7 @@ namespace {
                 const qint64 eTime = timer.nsecsElapsed();
                 qDebug() << mac.toHex() << "etime" << eTime;
                 guessTimes[i] = eTime;
-                const quint64 thresh = 2LL * 255LL * 1000000LL;  // 2ms, 255 attempts.
+                const qint64 thresh = 2LL * 255LL * 1000000LL;  // 2ms, 255 attempts.
                 if (i == 0) {
                     //
                 } else if ( (eTime - (thresh)) <  guessTimes.at(i-1)) {
