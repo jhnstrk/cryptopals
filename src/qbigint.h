@@ -11,36 +11,44 @@ public:
 
     QBigInt();
     QBigInt(const QString & s, int base);
-    QBigInt(quint32 value);
-    QBigInt(qint32 value);
-    QBigInt(quint64 value);
-    QBigInt(qint64 value);
+    explicit QBigInt(quint32 value);
+    explicit QBigInt(qint32 value);
+    explicit QBigInt(quint64 value);
+    explicit QBigInt(qint64 value);
     QBigInt(const QBigInt & other);
     ~QBigInt();
+
+    QBigInt & operator=(const QBigInt & other);
 
     QString toString(int base = 10) const;
 
     bool isNegative() const { return m_sign; }
     bool isZero() const;
+    bool isOne() const;
     bool isValid() const;
 
     void setToZero();
 
-    // devide by value, return *this.
-    QBigInt & divide(const WordType value, WordType & remainder);
     QBigInt & negate();
 
     const DataType & d() const { return m_d; }
 
     QBigInt & operator+=(const QBigInt & other);
     QBigInt & operator-=(const QBigInt & other);
+    QBigInt & operator+=(const qint32 & v) { return this->operator+=(QBigInt(v)); }
+    QBigInt & operator-=(const qint32 & v) { return this->operator-=(QBigInt(v)); }
     QBigInt & operator<<=(const unsigned int v);
     QBigInt & operator>>=(const unsigned int v);
+    QBigInt & operator/=(const WordType v);
+    QBigInt & operator*=(const WordType v);
+    QBigInt & operator*=(const QBigInt & other);
+    QBigInt & div(const WordType value, WordType &r);
 
     static QBigInt zero() { return QBigInt(WordType(0)); }
     static QBigInt one() { return QBigInt(WordType(1)); }
     static QBigInt minus_one() { return QBigInt(WordType(1)).negate(); }
 
+    unsigned int flags() const { return m_flags; }
 private:
 
     friend bool operator<(const QBigInt &a, const QBigInt &b);
@@ -55,6 +63,13 @@ private:
 
 QBigInt operator+(const QBigInt & a, const QBigInt & b);
 QBigInt operator-(const QBigInt & a, const QBigInt & b);
+QBigInt operator*(const QBigInt & a, const QBigInt & b);
+QBigInt operator/(const QBigInt & a, const QBigInt & b);
+QBigInt operator+(const QBigInt & a, const QBigInt::WordType v);
+QBigInt operator-(const QBigInt & a, const QBigInt::WordType v);
+QBigInt operator/(const QBigInt & a, const QBigInt::WordType v);
+QBigInt operator*(const QBigInt & a, const QBigInt::WordType v);
+
 QBigInt operator-(const QBigInt & a);
 QBigInt operator<<(const QBigInt &a, unsigned int n);
 QBigInt operator>>(const QBigInt &a, unsigned int n);
@@ -72,3 +87,4 @@ bool operator!=(const QBigInt & a, const QBigInt::WordType b) {
 
 QDebug operator<<(QDebug, const QBigInt & x);
 
+uint qHash(const QBigInt & a, uint seed = 0);

@@ -1,6 +1,7 @@
 #include "qbigint.h"
 
 #include <QDebug>
+#include <QHash>
 
 namespace {
   char valueToChar(unsigned int value)
@@ -8,9 +9,20 @@ namespace {
       if (value < 10) {
           return (char)value + '0';
       } else if (value < 37) {
-          return (char)value + 'a';
+          return (char)(value - 10) + 'a';
       } else {
           return '?'; // overflow.
+      }
+  }
+
+  unsigned int charToValue( QChar value )
+  {
+      if (value >= QChar('0') && (value <= QChar('9'))) {
+          return value.unicode() - QChar('0').unicode();
+      } else if (value >= QChar('a') && (value <= QChar('z'))) {
+          return value.unicode() - QChar('a').unicode() + 10;
+      } else {
+          return -1;
       }
   }
 
@@ -106,6 +118,40 @@ namespace {
         shrink_vec(v);
     }
 
+    // divide by value
+    void unsigned_divide(QBigInt::DataType & x,
+                                      const QBigInt::WordType value, QBigInt::WordType & remainder)
+    {
+        DWordType tmp = 0;
+        typedef QBigInt::WordType WordType;
+        for (int i = x.size()-1; i>=0; --i) {
+            tmp <<= WordBits;
+            tmp += x.at(i);
+            const DWordType x_div = tmp / value;
+            tmp = tmp % value;
+            x[i] = static_cast<WordType>(x_div);
+        }
+        if (x.back() == 0) {
+            x.removeLast();
+        }
+
+        remainder = static_cast<WordType>(tmp);
+    }
+
+    // multiply by value
+    void unsigned_multiply(QBigInt::DataType & x,
+                                      const QBigInt::WordType value)
+    {
+        DWordType tmp = 0;
+        for (int i=0; i<x.size(); ++i) {
+            tmp += DWordType(x.at(i)) * value;
+            x[i] = tmp & Mask32;
+            tmp >>= WordBits;
+        }
+        if (tmp != 0) {
+            x.push_back(tmp);
+        }
+    }
 
 }
 
@@ -115,9 +161,32 @@ QBigInt::QBigInt() : m_sign(false), m_flags(IsNull)
 
 }
 
-QBigInt::QBigInt(const QString &s, int base) : m_sign(false), m_flags(0)
+QBigInt::QBigInt(const QString &s, int base) : m_sign(false), m_flags(IsNull)
 {
     // TODO
+    if (s.isEmpty()) {
+        return;
+    }
+
+    const int sz = s.size();
+    QBigInt tmp(QBigInt::zero());
+    int i = 0;
+    if (s.at(i) == QChar('-')) {
+        tmp.negate();
+        ++i;
+    }
+
+    for ( ;i<sz; ++i) {
+        unsigned int v = charToValue(s.at(i));
+        if (v < (unsigned int)base) {
+            tmp *= base;
+            tmp += v;
+        } else {
+            // Parse error really.
+            break;
+        }
+    }
+    this->operator =(tmp);
 }
 
 QBigInt::QBigInt(WordType value) :    m_sign(false), m_flags(0)
@@ -174,6 +243,14 @@ QBigInt::~QBigInt()
 
 }
 
+QBigInt &QBigInt::operator=(const QBigInt &other)
+{
+    m_d = other.m_d;
+    m_sign = other.m_sign;
+    m_flags = other.m_flags;
+    return *this;
+}
+
 QString QBigInt::toString(int base) const
 {
     if (this->isZero()) {
@@ -187,7 +264,7 @@ QString QBigInt::toString(int base) const
     QString ret;
     while (!t.isZero()) {
         WordType remainder;
-        t = t.divide( (WordType)base, remainder);
+        t = t.div( (WordType)base, remainder);
         ret.push_front( valueToChar(remainder) );
     }
     if (this->isNegative()) {
@@ -199,6 +276,11 @@ QString QBigInt::toString(int base) const
 bool QBigInt::isZero() const
 {
     return (m_flags == 0) && m_d.isEmpty();
+}
+
+bool QBigInt::isOne() const
+{
+    return (m_flags == 0) && (!this->isNegative()) && (m_d.size() == 1) && (m_d.at(0) == 1);
 }
 
 bool QBigInt::isValid() const
@@ -213,40 +295,6 @@ void QBigInt::setToZero()
     m_sign = false;
 }
 
-QBigInt &QBigInt::divide(const WordType value, WordType &remainder)
-{
-    if (this->isZero()) {
-        if (value == 0) {
-            qCritical() << "0/0";
-            this->m_d.clear();
-            this->m_flags = InValid;
-            return *this;
-        }
-        remainder = value;
-        return *this;
-    }
-
-    if (!this->isValid()) {
-        remainder = 0;
-        return *this;
-    }
-
-    // Real division starts here.
-    DWordType tmp = 0;
-    for (int i = m_d.size()-1; i>=0; --i) {
-        tmp <<= WordBits;
-        tmp += m_d.at(i);
-        const DWordType x_div = tmp / value;
-        tmp = tmp % value;
-        m_d[i] = static_cast<WordType>(x_div);
-    }
-    if (m_d.back() == 0) {
-        m_d.removeLast();
-    }
-
-    remainder = static_cast<WordType>(tmp);
-    return *this;
-}
 
 QBigInt &QBigInt::negate()
 {
@@ -403,6 +451,54 @@ QBigInt &QBigInt::operator>>=(const unsigned int v)
     return *this;
 }
 
+QBigInt &QBigInt::operator/=(const QBigInt::WordType value)
+{
+    QBigInt::WordType r;
+    return this->div(value, r);
+}
+
+QBigInt &QBigInt::operator*=(const QBigInt::WordType v)
+{
+    if (this->isZero() || !this->isValid()) {
+        return *this;
+    }
+
+    unsigned_multiply(m_d, v);
+    return *this;
+}
+
+QBigInt &QBigInt::operator*=(const QBigInt &other)
+{
+    this->operator=(*this * other);
+    return *this;
+}
+
+QBigInt &QBigInt::div(const QBigInt::WordType value, QBigInt::WordType & r)
+{
+    if (this->isZero()) {
+        r = 0;
+        if (value == 0) {
+            qCritical() << "0/0";
+            this->m_d.clear();
+            this->m_flags = InValid;
+            return *this;
+        }
+        return *this;
+    }
+
+    if (!this->isValid()) {
+        r = 0;
+        return *this;
+    }
+
+    if (value == 1) {
+        r = 0;
+        return *this;
+    }
+    unsigned_divide(m_d, value, r);
+    return *this;
+}
+
 void QBigInt::shrink()
 {
     shrink_vec(m_d);
@@ -492,4 +588,73 @@ QBigInt operator-(const QBigInt &a)
 {
     QBigInt ret(a);
     return ret.negate();
+}
+
+uint qHash(const QBigInt &a, uint seed)
+{
+    uint ret = seed;
+    ret = qHash(a.d().size(), ret);
+    foreach (const QBigInt::WordType & item, a.d()) {
+        ret = qHash(item, ret);
+    }
+    ret = qHash(a.isNegative(), ret);
+    ret = qHash(a.flags(), ret);
+    return ret;
+}
+
+QBigInt operator/(const QBigInt &a, const QBigInt::WordType v)
+{
+    QBigInt ret(a);
+    ret /= v;
+    return ret;
+}
+
+QBigInt operator*(const QBigInt &a, const QBigInt::WordType v)
+{
+    QBigInt ret(a);
+    ret *= v;
+    return ret;
+}
+
+QBigInt operator*(const QBigInt &a, const QBigInt &b)
+{
+    if (!a.isValid()) {
+        return a;
+    }
+
+    if (!b.isValid()) {
+        return b;
+    }
+
+    if (a.isZero() || b.isOne()) {
+        return a;
+    }
+
+    if (a.isOne()) {
+        return b;
+    }
+
+    QBigInt result = QBigInt::zero();
+    for (int i = 0; i<b.d().size(); ++i) {
+        result += (a * b.d().at(i)) << (unsigned int)(i * WordBits);
+    }
+    if (b.isNegative()) {
+        result.negate();
+    }
+
+    return result;
+}
+
+QBigInt operator+(const QBigInt &a, const QBigInt::WordType v)
+{
+    QBigInt ret(a);
+    ret += QBigInt(v);
+    return ret;
+}
+
+QBigInt operator-(const QBigInt &a, const QBigInt::WordType v)
+{
+    QBigInt ret(a);
+    ret -= QBigInt(v);
+    return ret;
 }

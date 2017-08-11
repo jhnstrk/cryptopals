@@ -12,6 +12,23 @@
 
 JDS_ADD_TEST(TestBigInt)
 
+namespace QTest {
+
+    bool qCompare(QBigInt const& actual, QBigInt const& expected,
+                                  char const* lStr, char const* rStr, char const* file, int line)
+    {
+        if (!(actual == expected)) {
+            QString statement = QString("Compared values are not the same\n"
+                                        "Actual   (%1): %2\n"
+                                        "Expected (%3): %4")
+                    .arg(lStr,actual.toString(16),rStr,expected.toString(16));
+            qFail(statement.toUtf8().constData(),file,line);
+            return false;
+        }
+        return true;
+    }
+}
+
 void TestBigInt::initTestCase()
 {
 
@@ -32,10 +49,13 @@ void TestBigInt::testBasicOperators()
     QVERIFY(!(one == inv));
     QVERIFY(one != 0);
     QVERIFY(one != inv);
+    QCOMPARE( one,  one);
+    QCOMPARE( -one,  -one);
 
     const QBigInt zero = QBigInt::zero();
     QVERIFY(zero == 0);
     QVERIFY(zero != 1);
+    QCOMPARE( zero,  zero);
 
     QVERIFY(zero < one);
     QVERIFY(zero != one);
@@ -86,7 +106,27 @@ void TestBigInt::testBasicOperators()
     QCOMPARE( (one << 13).toString(30), QString::number(1LL << 13, 30) );
     QCOMPARE( (one << 13).toString(32), QString::number(1LL << 13, 32) );
     QCOMPARE( ((one+two +two) << 1).toString(2), QString::number(5LL << 1, 2) );
+    QCOMPARE( QBigInt(0x9abcd).toString(16), QString::number(0x9abcd, 16) );
 
+    // from String
+    QCOMPARE( QBigInt("9abcd",16).toString(16), QString::number(0x9abcd, 16) );
+    QCOMPARE( QBigInt("9abcdef0123456789abcdef",16).toString(16), QString("9abcdef0123456789abcdef") );
+
+    // multiply
+    QVERIFY( one * 2 == two );
+    QVERIFY( two * 4 == 8 );
+    QVERIFY( (one << 321) * (1 << 12)  == (one << 333) );
+    QVERIFY( two * two == 4 );
+    QCOMPARE( -one * two, -two );
+    QCOMPARE( (two * two + 1) * 4, QBigInt(20) );
+
+    const QBigInt t1("9abcdef0123456789abcdef",16);
+    QCOMPARE( (t1 << 36).toString(16), QString("9abcdef0123456789abcdef000000000") );
+    QCOMPARE( (t1 << 32).toString(16), QString("9abcdef0123456789abcdef00000000") );
+    QCOMPARE( (t1 << 28).toString(16), QString("9abcdef0123456789abcdef0000000") );
+    QCOMPARE( (t1 >> 36).toString(16), QString("9abcdef0123456") );
+    QCOMPARE( (t1 >> 32).toString(16), QString("9abcdef01234567") );
+    QCOMPARE( (t1 >> 28).toString(16), QString("9abcdef012345678") );
 
 }
 
