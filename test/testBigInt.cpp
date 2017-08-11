@@ -54,9 +54,17 @@ void TestBigInt::testBasicOperators()
     QVERIFY(two == 2);
 
     QVERIFY( (zero << 100) == zero);
+    QVERIFY( (zero >> 100) == zero);
+    QVERIFY( (zero + zero) == zero);
+    QVERIFY( (zero - zero) == zero);
+
+    QVERIFY( (one - zero) == one);
+    QVERIFY( (two - two) == zero);
+    QVERIFY( (one - two) == -one);
 
     QVERIFY( two + two + one == one + one + one + one + one);
 
+    // left shift.
     QVERIFY( (one << 1) == two);
     QVERIFY( (one << 31) == (1 << 31) );
     QCOMPARE( (one << 12).toString(16), QString::number(1LL << 12, 16) );
@@ -68,12 +76,17 @@ void TestBigInt::testBasicOperators()
     QCOMPARE( (one << 33).toString(16), QString::number(1LL << 33, 16) );
     QCOMPARE( (one << 63).toString(16), QString::number(1LL << 63, 16) );
 
-    // Random number bases.
+    //right shift
+    QCOMPARE( ((one << 13) >> 5).toString(16), QString::number(1LL << 8, 16));
+    QCOMPARE( ((one << 312) >> 300).toString(16), QString::number(1LL << 12, 16));
+
+    // toString: number bases.
     QCOMPARE( (one << 13).toString(8), QString::number(1LL << 13, 8) );
     QCOMPARE( (one << 13).toString(5), QString::number(1LL << 13, 5) );
     QCOMPARE( (one << 13).toString(30), QString::number(1LL << 13, 30) );
     QCOMPARE( (one << 13).toString(32), QString::number(1LL << 13, 32) );
     QCOMPARE( ((one+two +two) << 1).toString(2), QString::number(5LL << 1, 2) );
+
 
 }
 

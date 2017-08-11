@@ -24,6 +24,8 @@ public:
     bool isZero() const;
     bool isValid() const;
 
+    void setToZero();
+
     // devide by value, return *this.
     QBigInt & divide(const WordType value, WordType & remainder);
     QBigInt & negate();
@@ -33,6 +35,7 @@ public:
     QBigInt & operator+=(const QBigInt & other);
     QBigInt & operator-=(const QBigInt & other);
     QBigInt & operator<<=(const unsigned int v);
+    QBigInt & operator>>=(const unsigned int v);
 
     static QBigInt zero() { return QBigInt(WordType(0)); }
     static QBigInt one() { return QBigInt(WordType(1)); }
@@ -54,6 +57,7 @@ QBigInt operator+(const QBigInt & a, const QBigInt & b);
 QBigInt operator-(const QBigInt & a, const QBigInt & b);
 QBigInt operator-(const QBigInt & a);
 QBigInt operator<<(const QBigInt &a, unsigned int n);
+QBigInt operator>>(const QBigInt &a, unsigned int n);
 
 bool operator<(const QBigInt & a, const QBigInt & b);
 bool operator==(const QBigInt & a, const QBigInt & b);

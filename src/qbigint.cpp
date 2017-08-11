@@ -206,6 +206,13 @@ bool QBigInt::isValid() const
     return (m_flags == 0);
 }
 
+void QBigInt::setToZero()
+{
+    m_d.clear();
+    m_flags = 0;
+    m_sign = false;
+}
+
 QBigInt &QBigInt::divide(const WordType value, WordType &remainder)
 {
     if (this->isZero()) {
@@ -350,6 +357,52 @@ QBigInt &QBigInt::operator<<=(const unsigned int v)
     return *this;
 }
 
+QBigInt &QBigInt::operator>>=(const unsigned int v)
+{
+    if (this->isZero() || !this->isValid()) {
+        return *this;
+    }
+
+    const int n = v / WordBits;
+    const unsigned int r = v % WordBits;
+    const int initSize = m_d.size();
+    if (n >= initSize) {
+        this->setToZero();
+        return *this;
+    }
+
+    WordType tmp = m_d.back();
+    DWordType high = DWordType(tmp) >> r;
+
+    int iStart = 0;
+    if (high != 0) {
+        if (n != 0) {
+            m_d = m_d.mid(n,initSize - n);
+        }
+        m_d.back() = high;
+        iStart = m_d.size() - 2;
+    } else if (initSize -n == 1){
+        this->setToZero();
+        return *this;
+    } else {
+        m_d = m_d.mid(n,initSize - n - 1);
+        iStart = m_d.size() - 1;
+    }
+
+    for (int i=iStart; i>=0; --i) {
+        high = tmp;
+        high <<= (WordBits - r);
+
+        tmp = m_d.at(i - 1);  // n can be zero, store d[i]
+
+        high |= (tmp >>r);
+
+        m_d[i] = high & Mask32;
+    }
+
+    return *this;
+}
+
 void QBigInt::shrink()
 {
     shrink_vec(m_d);
@@ -422,8 +475,21 @@ QBigInt operator<<(const QBigInt &a, unsigned int n)
     return ret;
 }
 
+QBigInt operator>>(const QBigInt &a, unsigned int n)
+{
+    QBigInt ret(a);
+    ret >>= n;
+    return ret;
+}
+
 QDebug operator<<(QDebug dbg, const QBigInt &x)
 {
     dbg << x.toString();
     return dbg;
+}
+
+QBigInt operator-(const QBigInt &a)
+{
+    QBigInt ret(a);
+    return ret.negate();
 }
