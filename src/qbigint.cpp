@@ -170,9 +170,10 @@ QBigInt::QBigInt(const QString &s, int base) : m_sign(false), m_flags(IsNull)
 
     const int sz = s.size();
     QBigInt tmp(QBigInt::zero());
+    bool negative = false;
     int i = 0;
     if (s.at(i) == QChar('-')) {
-        tmp.negate();
+        negative = true;
         ++i;
     }
 
@@ -186,7 +187,11 @@ QBigInt::QBigInt(const QString &s, int base) : m_sign(false), m_flags(IsNull)
             break;
         }
     }
+
     this->operator =(tmp);
+    if (negative && this->isValid()) {
+        m_sign = true;
+    }
 }
 
 QBigInt::QBigInt(WordType value) :    m_sign(false), m_flags(0)

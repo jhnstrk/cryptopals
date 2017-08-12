@@ -107,8 +107,10 @@ void TestBigInt::testBasicOperators()
     QCOMPARE( (one << 13).toString(32), QString::number(1LL << 13, 32) );
     QCOMPARE( ((one+two +two) << 1).toString(2), QString::number(5LL << 1, 2) );
     QCOMPARE( QBigInt(0x9abcd).toString(16), QString::number(0x9abcd, 16) );
+    QCOMPARE( (-one).toString(10), QString::number(-1) );
 
     // from String
+    QCOMPARE( QBigInt("-1",10).toString(), QString::number(-1) );
     QCOMPARE( QBigInt("9abcd",16).toString(16), QString::number(0x9abcd, 16) );
     QCOMPARE( QBigInt("9abcdef0123456789abcdef",16).toString(16), QString("9abcdef0123456789abcdef") );
 
@@ -128,6 +130,11 @@ void TestBigInt::testBasicOperators()
     QCOMPARE( -one * two, -two );
     QCOMPARE( (two * two + 1) * 4, QBigInt(20) );
 
+    // Decimal numbers
+    QCOMPARE( (QBigInt("1234567890123456789",10) * 10).toString(10),
+              QString( "12345678901234567890") );
+    QCOMPARE( (QBigInt("-1234567890123456789",10) * 10).toString(10),
+              QString( "-12345678901234567890") );
 }
 
 void TestBigInt::testString_data()
