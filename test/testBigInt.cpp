@@ -112,14 +112,6 @@ void TestBigInt::testBasicOperators()
     QCOMPARE( QBigInt("9abcd",16).toString(16), QString::number(0x9abcd, 16) );
     QCOMPARE( QBigInt("9abcdef0123456789abcdef",16).toString(16), QString("9abcdef0123456789abcdef") );
 
-    // multiply
-    QVERIFY( one * 2 == two );
-    QVERIFY( two * 4 == 8 );
-    QVERIFY( (one << 321) * (1 << 12)  == (one << 333) );
-    QVERIFY( two * two == 4 );
-    QCOMPARE( -one * two, -two );
-    QCOMPARE( (two * two + 1) * 4, QBigInt(20) );
-
     const QBigInt t1("9abcdef0123456789abcdef",16);
     QCOMPARE( (t1 << 36).toString(16), QString("9abcdef0123456789abcdef000000000") );
     QCOMPARE( (t1 << 32).toString(16), QString("9abcdef0123456789abcdef00000000") );
@@ -127,6 +119,14 @@ void TestBigInt::testBasicOperators()
     QCOMPARE( (t1 >> 36).toString(16), QString("9abcdef0123456") );
     QCOMPARE( (t1 >> 32).toString(16), QString("9abcdef01234567") );
     QCOMPARE( (t1 >> 28).toString(16), QString("9abcdef012345678") );
+
+    // multiply
+    QVERIFY( one * 2 == two );
+    QVERIFY( two * 4 == 8 );
+    QVERIFY( (one << 321) * (1 << 12)  == (one << 333) );
+    QVERIFY( two * two == 4 );
+    QCOMPARE( -one * two, -two );
+    QCOMPARE( (two * two + 1) * 4, QBigInt(20) );
 
 }
 

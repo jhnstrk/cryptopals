@@ -377,31 +377,39 @@ QBigInt &QBigInt::operator<<=(const unsigned int v)
     const int n = v / WordBits;
     const unsigned int r = v % WordBits;
     const int initSize = m_d.size();
-    WordType tmp = m_d.back();
-    DWordType high = DWordType(tmp) >> (WordBits - r);
 
-    if (high != 0) {
-        m_d.resize(initSize + n + 1);
-        m_d.back() = high;
-    } else {
-        m_d.resize(initSize + n);
-    }
-
-    high = tmp;
+    m_d.resize(initSize + n + (r != 0 ? 1 : 0));
     const int sz = m_d.size();
 
-    for (int i=sz -1; i>=n; --i) {
-        tmp = m_d.at(i - n);  // n can be zero, store d[i]
-
-        high <<= r;
-        high |= (tmp >> (WordBits - r));
-
-        m_d[i] = high & Mask32;
-        high = tmp;
+    if (n != 0) {
+        // Do whole word shift
+        for (int i=sz -1; i>=n; --i) {
+            m_d[i] = m_d.at(i-n);
+        }
+        for (int i=n -1; i>=0; --i) {
+            m_d[i] = 0;
+        }
     }
-    for (int i=n -1; i>=0; --i) {
-        m_d[i] = 0;
+
+    if ( r != 0) {
+        // Bit shift.
+        for (int i=sz -1; i>=n; --i) {
+            WordType high;
+            if (i - 1 >= 0) {
+                high = (DWordType(m_d.at(i - 1)) >> (WordBits - r));
+            } else {
+                high = 0;
+            }
+
+            high |= (DWordType(m_d.at(i)) << r);
+
+            m_d[i] = high & Mask32;
+        }
+        if (m_d.back() == 0) {
+            m_d.removeLast();
+        }
     }
+
     return *this;
 }
 
@@ -419,33 +427,26 @@ QBigInt &QBigInt::operator>>=(const unsigned int v)
         return *this;
     }
 
-    WordType tmp = m_d.back();
-    DWordType high = DWordType(tmp) >> r;
-
-    int iStart = 0;
-    if (high != 0) {
-        if (n != 0) {
-            m_d = m_d.mid(n,initSize - n);
-        }
-        m_d.back() = high;
-        iStart = m_d.size() - 2;
-    } else if (initSize -n == 1){
-        this->setToZero();
-        return *this;
-    } else {
-        m_d = m_d.mid(n,initSize - n - 1);
-        iStart = m_d.size() - 1;
+    if (n != 0) {
+        // Word shift
+        m_d = m_d.mid(n,initSize - n);
     }
 
-    for (int i=iStart; i>=0; --i) {
-        high = tmp;
-        high <<= (WordBits - r);
+    if ( r != 0) {
+        // bit shift
+        for (int i=0; i<m_d.size(); ++i) {
+            WordType high = m_d.at(i);
+            high >>= r;
+            if (i + 1 < m_d.size()) {
+                high |= DWordType(m_d.at(i+1)) << (WordBits - r);
+            }
 
-        tmp = m_d.at(i - 1);  // n can be zero, store d[i]
+            m_d[i] = high & Mask32;
+        }
 
-        high |= (tmp >>r);
-
-        m_d[i] = high & Mask32;
+        if (m_d.back() == 0) {
+            m_d.removeLast();
+        }
     }
 
     return *this;
