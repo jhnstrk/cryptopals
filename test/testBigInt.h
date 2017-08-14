@@ -12,7 +12,16 @@ private slots:
 
     void testBasicOperators();
 
+    void testConstructors();
+
     void testString_data();
     void testString();
 
+    void testBytes_data();
+    void testBytes();
+
+    void testDivide_data();
+    void testDivide();
+
+    void testDivideBad();
 };

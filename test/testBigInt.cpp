@@ -9,6 +9,7 @@
 #include "test.h"
 
 #include <algorithm>
+#include <limits>
 
 JDS_ADD_TEST(TestBigInt)
 
@@ -86,7 +87,7 @@ void TestBigInt::testBasicOperators()
 
     // left shift.
     QVERIFY( (one << 1) == two);
-    QVERIFY( (one << 31) == (1 << 31) );
+    QVERIFY( (one << 31) == (1u << 31) );
     QCOMPARE( (one << 12).toString(16), QString::number(1LL << 12, 16) );
     QCOMPARE( (one << 12).toString(10), QString::number(1LL << 12, 10) );
 
@@ -99,15 +100,6 @@ void TestBigInt::testBasicOperators()
     //right shift
     QCOMPARE( ((one << 13) >> 5).toString(16), QString::number(1LL << 8, 16));
     QCOMPARE( ((one << 312) >> 300).toString(16), QString::number(1LL << 12, 16));
-
-    // toString: number bases.
-    QCOMPARE( (one << 13).toString(8), QString::number(1LL << 13, 8) );
-    QCOMPARE( (one << 13).toString(5), QString::number(1LL << 13, 5) );
-    QCOMPARE( (one << 13).toString(30), QString::number(1LL << 13, 30) );
-    QCOMPARE( (one << 13).toString(32), QString::number(1LL << 13, 32) );
-    QCOMPARE( ((one+two +two) << 1).toString(2), QString::number(5LL << 1, 2) );
-    QCOMPARE( QBigInt(0x9abcd).toString(16), QString::number(0x9abcd, 16) );
-    QCOMPARE( (-one).toString(10), QString::number(-1) );
 
     // from String
     QCOMPARE( QBigInt("-1",10).toString(), QString::number(-1) );
@@ -122,40 +114,235 @@ void TestBigInt::testBasicOperators()
     QCOMPARE( (t1 >> 32).toString(16), QString("9abcdef01234567") );
     QCOMPARE( (t1 >> 28).toString(16), QString("9abcdef012345678") );
 
+    qDebug() << "multiply";
     // multiply
     QVERIFY( one * 2 == two );
     QVERIFY( two * 4 == 8 );
     QVERIFY( (one << 321) * (1 << 12)  == (one << 333) );
     QVERIFY( two * two == 4 );
+    QVERIFY( two * -two == -4 );
+    QVERIFY( -two * two == -4 );
+    QVERIFY( -two * -two == 4 );
     QCOMPARE( -one * two, -two );
     QCOMPARE( (two * two + 1) * 4, QBigInt(20) );
 
+    qDebug() << "Decimal";
     // Decimal numbers
     QCOMPARE( (QBigInt("1234567890123456789",10) * 10).toString(10),
               QString( "12345678901234567890") );
     QCOMPARE( (QBigInt("-1234567890123456789",10) * 10).toString(10),
               QString( "-12345678901234567890") );
+    QCOMPARE( (QBigInt("1234567890",10) * QBigInt("1000000",10)).toString(10),
+              QString( "1234567890000000") );
+
+    qDebug() << "Bit Positions";
+    QCOMPARE( (QBigInt(0)).highBitPosition(), -1);
+    QCOMPARE( (QBigInt(1)).highBitPosition(), 0);
+    QCOMPARE( (QBigInt(1) << 1).highBitPosition(), 1);
+    QCOMPARE( (QBigInt(1) << 7).highBitPosition(), 7);
+    QCOMPARE( (QBigInt(0x10101010)).highBitPosition(), 28);
+    QCOMPARE( (QBigInt(0x10101010) << 3).highBitPosition(), 28+3);
+    QCOMPARE( (QBigInt(0x10101010) << 123).highBitPosition(), 28 + 123);
+
+    QBigInt test = zero;
+    test.setBit(31);
+    QCOMPARE(test , QBigInt(1u << 31));
+    test.setBit(28);
+    QCOMPARE(test , QBigInt((1u << 31) | (1u << 28)));
+    test.setBit(123);
+    QVERIFY(test.testBit(28));
+    QVERIFY(test.testBit(31));
+    QVERIFY(test.testBit(123));
+    QVERIFY(!test.testBit(321));
+    QVERIFY(!test.testBit(0));
+    test.setBit(0);
+    QVERIFY(test.testBit(0));
+
+    test = QBigInt::one();
+    --test;
+    QCOMPARE(test, QBigInt(0) );
+    --test;
+    QCOMPARE(test, QBigInt(-1) );
+    --test;
+    QCOMPARE(test, QBigInt(-2) );
+    ++test;
+    ++test;
+    QCOMPARE(test, QBigInt(0) );
+    ++test;
+    QCOMPARE(test, QBigInt(1) );
+
+    test = QBigInt::zero();
+    test += 123;
+    QCOMPARE(test, QBigInt(123) );
+    test -= 130;
+    QCOMPARE(test, QBigInt(-7) );
+}
+
+void TestBigInt::testConstructors()
+{
+    {
+        typedef quint32 T;
+        QCOMPARE( QBigInt(T(0)).toString(), QString("0") );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::max()).toString(),
+                  QString::number(std::numeric_limits<T>::max()) );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::min()).toString(),
+                  QString::number(std::numeric_limits<T>::min()) );
+    }
+    {
+        typedef qint32 T;
+        QCOMPARE( QBigInt(T(0)).toString(), QString("0") );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::max()).toString(),
+                  QString::number(std::numeric_limits<T>::max()) );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::min()).toString(),
+                  QString::number(std::numeric_limits<T>::min()) );
+    }
+    {
+        typedef quint64 T;
+        QCOMPARE( QBigInt(T(0)).toString(), QString("0") );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::max()).toString(),
+                  QString::number(std::numeric_limits<T>::max()) );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::min()).toString(),
+                  QString::number(std::numeric_limits<T>::min()) );
+    }
+    {
+        typedef qint64 T;
+        QCOMPARE( QBigInt(T(0)).toString(), QString("0") );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::max()).toString(),
+                  QString::number(std::numeric_limits<T>::max()) );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::min()).toString(),
+                  QString::number(std::numeric_limits<T>::min()) );
+    }
+    {
+        typedef unsigned char T;
+        QCOMPARE( QBigInt(T(0)).toString(), QString("0") );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::max()).toString(),
+                  QString::number(std::numeric_limits<T>::max()) );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::min()).toString(),
+                  QString::number(std::numeric_limits<T>::min()) );
+    }
+    {
+        typedef signed char T;
+        QCOMPARE( QBigInt(T(0)).toString(), QString("0") );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::max()).toString(),
+                  QString::number(std::numeric_limits<T>::max()) );
+        QCOMPARE( QBigInt(std::numeric_limits<T>::min()).toString(),
+                  QString::number(std::numeric_limits<T>::min()) );
+    }
+
+    QCOMPARE( QBigInt(QByteArray::fromHex("0102030405060708091a1b1c")).toString(16),
+              QString("1c1b1a090807060504030201"));
 }
 
 void TestBigInt::testString_data()
 {
-    QTest::addColumn<qint64>("v");
     QTest::addColumn<int>("base");
     QTest::addColumn<QString>("str");
 
-    QTest::newRow("0")  << qint64(0)  << 10    << QString::number(0);
-    QTest::newRow("1")  << qint64(1)  << 10    << QString::number(1);
+    const quint64 oneTwo30n = (1ull << 30);
+    QTest::newRow("0")  << 10    << QString::number(0);
+    QTest::newRow("1")  << 10    << QString::number(1);
+    QTest::newRow("1<<30,8")  << 8 << QString::number(oneTwo30n,8);
+    QTest::newRow("1<<30,5") << 5 << QString::number(oneTwo30n,5);
+    QTest::newRow("1<<30,30") << 30 << QString::number(oneTwo30n,30);
+    QTest::newRow("1<<30,32") << 32 << QString::number(oneTwo30n,32);
+    QTest::newRow("1<<30,2")  << 2 << QString::number(oneTwo30n,2);
+    QTest::newRow("1<<30,2") << 16 << QString::number(0x9abcd,16);
+    QTest::newRow("-100") << 10 << QString::number(100,16);
 }
 
 void TestBigInt::testString()
 {
-    const QFETCH( qint64, v);
     const QFETCH( int, base);
     const QFETCH( QString, str);
 
-    const QBigInt anum = QBigInt(v);
+    const QBigInt anum = QBigInt(str,base);
     const QString actual = anum.toString(base);
 
     QCOMPARE(actual, str);
 }
 
+void TestBigInt::testBytes_data()
+{
+    QTest::addColumn<QString>("number");
+
+    QTest::newRow("0") << QString("0");
+    QTest::newRow("1") << QString("1");
+    QTest::newRow("100") << QString("100");
+    QTest::newRow("65535") << QString("65535");
+    QTest::newRow("3141592") << QString("3141592");
+    QTest::newRow("pi-19") << QString("3141592653589793238");
+    QTest::newRow("pi-50") << QString("31415926535897932384626433832795028841971693993751");
+}
+
+void TestBigInt::testBytes()
+{
+    const QFETCH( QString, number);
+
+    const QBigInt anum = QBigInt(number,10);
+    const QByteArray bytes = anum.toLittleEndianBytes();
+    const QBigInt anum2 = QBigInt(bytes);
+
+    QCOMPARE(anum2, anum);
+}
+
+namespace {
+    QString Q(const char * x) { return QString(x); }
+    QString N(qint64 x) { return QString::number(x); }
+}
+void TestBigInt::testDivide_data()
+{
+    QTest::addColumn<QString>("numerator");
+    QTest::addColumn<QString>("denominator");
+    QTest::addColumn<QString>("quotient");
+    QTest::addColumn<QString>("remainder");
+
+    QTest::newRow("0/1")  << N(0) << N( 1) << N(0/ 1) << N(0%1);
+    QTest::newRow("0/-1") << N(0) << N(-1) << N(0/-1) << N(0%-1);
+    QTest::newRow("1/1")  << N(1) << N( 1) << N(1/ 1) << N(1%1);
+    QTest::newRow("1/-1") << N(1) << N(-1) << N(1/-1) << N(1%-1);
+    QTest::newRow("-1/1")  << N(-1) << N( 1) << N(-1/ 1) << N(-1%1);
+    QTest::newRow("-1/-1") << N(-1) << N(-1) << N(-1/-1) << N(-1%-1);
+
+    QTest::newRow("510/41")   << N( 510) << N( 41) << N( 510/ 41) << N( 510% 41);
+    QTest::newRow("510/-41")  << N( 510) << N(-41) << N( 510/-41) << N( 510%-41);
+    QTest::newRow("-510/41")  << N(-510) << N( 41) << N(-510/ 41) << N(-510% 41);
+    QTest::newRow("-510/-41") << N(-510) << N(-41) << N(-510/-41) << N(-510%-41);
+
+    QTest::newRow("1024/64")   << N( 1024) << N( 64) << N( 1024/ 64) << N( 1024% 64);
+    QTest::newRow("1024/-64")  << N( 1024) << N(-64) << N( 1024/-64) << N( 1024%-64);
+    QTest::newRow("-1024/64")  << N(-1024) << N( 64) << N(-1024/ 64) << N(-1024% 64);
+    QTest::newRow("-1024/-64") << N(-1024) << N(-64) << N(-1024/-64) << N(-1024%-64);
+
+    // According to python:
+    QTest::newRow("Big div") << Q("1234568789012098741234124214241242")
+                             << Q("12441239876663111")
+                             << Q("99231973762346974")
+                             << Q("7603865325965128");
+}
+
+void TestBigInt::testDivide()
+{
+    const QFETCH( QString, numerator);
+    const QFETCH( QString, denominator);
+    const QFETCH( QString, quotient);
+    const QFETCH( QString, remainder);
+
+    const QBigInt anum = QBigInt(numerator,10);
+    const QBigInt aden = QBigInt(denominator,10);
+    const QBigInt quotientA = QBigInt(quotient,10);
+    const QBigInt remainderA = QBigInt(remainder,10);
+
+    QPair< QBigInt, QBigInt > result = QBigInt::div(anum,aden);
+
+    QCOMPARE( result.first, quotientA );
+    QCOMPARE( result.second, remainderA );
+
+    QCOMPARE( anum / aden, quotientA );
+    QCOMPARE( anum % aden, remainderA);
+}
+
+void TestBigInt::testDivideBad()
+{
+    QVERIFY( !(QBigInt::zero() / QBigInt::zero()).isValid() );
+    QVERIFY( !(QBigInt::one() / QBigInt::zero()).isValid() );
+}
