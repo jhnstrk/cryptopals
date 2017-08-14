@@ -29,13 +29,18 @@ public:
     bool isZero() const;
     bool isOne() const;
     bool isValid() const;
-    int highBitPosition() const; // returns -1 if this is zero or invalid.
+
+    //! Returns the position of the highest set bit.
+    // returns -1 if this is zero or invalid.
+    int highBitPosition() const;
 
     void setToZero();
 
     //! Set bit at given position to 1.
+    //  Bit positions start from zero.
     void setBit(int ibit);
     //! Return true if bit at given position is set.
+    //  Bit positions start from zero.
     bool testBit(int ibit) const;
     QBigInt & negate();
 
@@ -61,7 +66,15 @@ public:
 
     unsigned int flags() const { return m_flags; }
 
+    //! Return (quotient, remainder)
     static QPair<QBigInt,QBigInt> div(const QBigInt & a, const QBigInt & b);
+
+    //! Raise to power p
+    QBigInt exp(const QBigInt & p) const;
+
+    //! this to power p, mod m
+    QBigInt modExp(const QBigInt & p, const QBigInt & m) const;
+
 private:
     explicit QBigInt(const DataType& d, bool sign);
     friend bool operator<(const QBigInt &a, const QBigInt &b);

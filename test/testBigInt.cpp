@@ -176,6 +176,20 @@ void TestBigInt::testBasicOperators()
     QCOMPARE(test, QBigInt(123) );
     test -= 130;
     QCOMPARE(test, QBigInt(-7) );
+
+    qDebug() << "pow";
+    test = QBigInt(3);
+    QCOMPARE(test.exp(QBigInt(4)), QBigInt(3*3*3*3));
+    QCOMPARE(QBigInt(2).exp(QBigInt(31)), QBigInt(quint64(1) << 31));
+
+    qDebug() << "modExp";
+    test = QBigInt(3);
+    QCOMPARE(test.modExp(QBigInt(4), QBigInt(13)), QBigInt((3*3*3*3) % 13));
+    QCOMPARE(QBigInt(2).modExp(QBigInt(31), QBigInt(13)), QBigInt((quint64(1) << 31) % 13));
+
+    // Example from wikipedia
+    test = QBigInt(4);
+    QCOMPARE(test.modExp(QBigInt(13), QBigInt(497)), QBigInt(445));
 }
 
 void TestBigInt::testConstructors()
@@ -303,10 +317,16 @@ void TestBigInt::testDivide_data()
     QTest::newRow("-1/1")  << N(-1) << N( 1) << N(-1/ 1) << N(-1%1);
     QTest::newRow("-1/-1") << N(-1) << N(-1) << N(-1/-1) << N(-1%-1);
 
-    QTest::newRow("510/41")   << N( 510) << N( 41) << N( 510/ 41) << N( 510% 41);
-    QTest::newRow("510/-41")  << N( 510) << N(-41) << N( 510/-41) << N( 510%-41);
-    QTest::newRow("-510/41")  << N(-510) << N( 41) << N(-510/ 41) << N(-510% 41);
-    QTest::newRow("-510/-41") << N(-510) << N(-41) << N(-510/-41) << N(-510%-41);
+    QTest::newRow("9/13")   << N( 9) << N( 13) << N( 9/ 13) << N( 9% 13);
+    QTest::newRow("9/-13")  << N( 9) << N(-13) << N( 9/-13) << N( 9%-13);
+    QTest::newRow("-9/13")  << N(-9) << N( 13) << N(-9/ 13) << N(-9% 13);
+    QTest::newRow("-9/-13") << N(-9) << N(-13) << N(-9/-13) << N(-9%-13);
+
+    const qint64 x = (qint64(1) << 41) * 1234;
+    QTest::newRow("x/41")   << N( x) << N( 41) << N( x/ 41) << N( x% 41);
+    QTest::newRow("x/-41")  << N( x) << N(-41) << N( x/-41) << N( x%-41);
+    QTest::newRow("-x/41")  << N(-x) << N( 41) << N(-x/ 41) << N(-x% 41);
+    QTest::newRow("-x/-41") << N(-x) << N(-41) << N(-x/-41) << N(-x%-41);
 
     QTest::newRow("1024/64")   << N( 1024) << N( 64) << N( 1024/ 64) << N( 1024% 64);
     QTest::newRow("1024/-64")  << N( 1024) << N(-64) << N( 1024/-64) << N( 1024%-64);
@@ -338,7 +358,13 @@ void TestBigInt::testDivide()
     QCOMPARE( result.second, remainderA );
 
     QCOMPARE( anum / aden, quotientA );
-    QCOMPARE( anum % aden, remainderA);
+    QCOMPARE( anum % aden, remainderA );
+
+    // Check multiply and add is consistent.
+    QCOMPARE( quotientA * aden + remainderA, anum);
+    QCOMPARE( quotientA * aden, anum - remainderA);
+    QCOMPARE( remainderA + (aden * quotientA), anum);
+    QCOMPARE( aden * quotientA, anum - remainderA);
 }
 
 void TestBigInt::testDivideBad()

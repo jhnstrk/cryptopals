@@ -878,7 +878,7 @@ QPair <QBigInt,QBigInt> QBigInt::div(const QBigInt &a, const QBigInt &b)
         }
     case -1:
         // |a| < |b|
-        return ReturnType(QBigInt::zero(), b);
+        return ReturnType(QBigInt::zero(), a);
     case 1:
     default:
         // |b| < |a|  => Divide.
@@ -899,12 +899,65 @@ QPair <QBigInt,QBigInt> QBigInt::div(const QBigInt &a, const QBigInt &b)
                               QBigInt::zero());
         } else {
             return ReturnType(QBigInt(tmp.first, true),  // quotient always negative
-                              QBigInt(tmp.second, (!tmp.second.isEmpty()) && a.isNegative()));
+                              QBigInt(tmp.second, a.isNegative()));
         }
 
     }
 
     return ReturnType(QBigInt(), QBigInt());;
+}
+
+QBigInt QBigInt::exp(const QBigInt &p) const
+{
+    if (p.isNegative()) {
+        qWarning() << "Cannot raise to negative power" << p;
+        return QBigInt();
+    }
+
+    QBigInt ytmp = QBigInt::one();
+
+    if (p.isZero()) {
+        return ytmp;
+    }
+
+    QBigInt xtmp = *this;
+
+    // Exponentiation by squaring.
+    const int nb = p.highBitPosition();
+    for (int i=0; i<nb; ++i) {
+        if (p.testBit(i)) {
+            ytmp *= xtmp;
+        }
+        xtmp *= xtmp;
+    }
+    return xtmp * ytmp;
+}
+
+QBigInt QBigInt::modExp(const QBigInt &p, const QBigInt &m) const
+{
+    if (p.isNegative()) {
+        qWarning() << "Cannot raise to negative power" << p;
+        return QBigInt();
+    }
+
+    QBigInt ytmp = QBigInt::one();
+
+    if (p.isZero()) {
+        return ytmp;
+    }
+
+    QBigInt xtmp = *this;
+
+    // Exponentiation by squaring.
+    const int nb = p.highBitPosition();
+    for (int i=0; i<nb; ++i) {
+        if (p.testBit(i)) {
+            ytmp *= xtmp;
+        }
+        xtmp *= xtmp;
+        xtmp = (xtmp % m);
+    }
+    return (xtmp * ytmp) % m;
 }
 
 
