@@ -25,9 +25,6 @@ void TestSet4::cleanupTestCase()
 
 }
 
-namespace {
-
-}
 void TestSet4::testCtrEdit()
 {
     const quint64 nonce = qossl::randomUInt64();

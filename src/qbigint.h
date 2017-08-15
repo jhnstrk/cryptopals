@@ -1,9 +1,13 @@
 #pragma once
 
+#include <QMetaType>
 #include <QPair>
 #include <QVector>
 
-#include <QDebug>
+// Forward declare.
+class QDataStream;
+class QDebug;
+
 class QBigInt {
 
 public:
@@ -25,7 +29,7 @@ public:
     QString toString(int base = 10) const;
     QByteArray toLittleEndianBytes() const;
 
-    bool isNegative() const { return m_sign; }
+    inline bool isNegative() const { return m_sign; }
     bool isZero() const;
     bool isOne() const;
     bool isValid() const;
@@ -44,15 +48,15 @@ public:
     bool testBit(int ibit) const;
     QBigInt & negate();
 
-    const DataType & d() const { return m_d; }
+    inline const DataType & d() const { return m_d; }
 
-    QBigInt & operator++() { return this->operator+=(1); }
-    QBigInt & operator--() { return this->operator-=(1); }
+    inline QBigInt & operator++() { return this->operator+=(1); }
+    inline QBigInt & operator--() { return this->operator-=(1); }
 
     QBigInt & operator+=(const QBigInt & other);
     QBigInt & operator-=(const QBigInt & other);
     QBigInt & operator+=(const WordType v);
-    QBigInt & operator-=(const int v) { return this->operator-=(QBigInt(v)); }
+    inline QBigInt & operator-=(const int v) { return this->operator-=(QBigInt(v)); }
     QBigInt & operator<<=(const unsigned int v);
     QBigInt & operator>>=(const unsigned int v);
     QBigInt & operator/=(const WordType v);
@@ -60,11 +64,12 @@ public:
     QBigInt & operator*=(const QBigInt & other);
     QBigInt & div(const WordType value, WordType &r);
 
-    static QBigInt zero() { return QBigInt(WordType(0)); }
-    static QBigInt one() { return QBigInt(WordType(1)); }
-    static QBigInt minusOne() { return QBigInt(WordType(1)).negate(); }
+    inline static QBigInt zero() { return QBigInt(WordType(0)); }
+    inline static QBigInt one() { return QBigInt(WordType(1)); }
+    inline static QBigInt minusOne() { return QBigInt(WordType(1)).negate(); }
 
-    unsigned int flags() const { return m_flags; }
+    inline unsigned int flags() const { return m_flags; }
+    inline void setFlags(unsigned int f) { m_flags = f; }
 
     //! Return (quotient, remainder)
     static QPair<QBigInt,QBigInt> div(const QBigInt & a, const QBigInt & b);
@@ -109,12 +114,12 @@ QBigInt operator>>(const QBigInt &a, unsigned int n);
 
 bool operator<(const QBigInt & a, const QBigInt & b);
 bool operator==(const QBigInt & a, const QBigInt & b);
-bool operator!=(const QBigInt & a, const QBigInt & b) {
+inline bool operator!=(const QBigInt & a, const QBigInt & b) {
     return !(a == b);
 }
 
 bool operator==(const QBigInt & a, const QBigInt::WordType b);
-bool operator!=(const QBigInt & a, const QBigInt::WordType b) {
+inline bool operator!=(const QBigInt & a, const QBigInt::WordType b) {
     return !(a == b);
 }
 
@@ -131,3 +136,8 @@ bool operator!=(const QBigInt & a, const T b) {
 QDebug operator<<(QDebug, const QBigInt & x);
 
 uint qHash(const QBigInt & a, uint seed = 0);
+
+Q_DECLARE_METATYPE(QBigInt)
+
+QDataStream &operator<<(QDataStream &out, const QBigInt &obj);
+QDataStream &operator>>(QDataStream &in, QBigInt &obj);

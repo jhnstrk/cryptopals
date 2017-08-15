@@ -1,9 +1,19 @@
 #include "qbigint.h"
 
+#include <QDataStream>
 #include <QDebug>
 #include <QHash>
 
 namespace {
+  class QBigIntMetaTypeInitializer {
+      QBigIntMetaTypeInitializer() {
+          qRegisterMetaType<QBigInt>();
+      }
+      static QBigIntMetaTypeInitializer m_obj;
+  };
+
+  QBigIntMetaTypeInitializer QBigIntMetaTypeInitializer::m_obj;
+
   char valueToChar(unsigned int value)
   {
       if (value < 10) {
@@ -31,7 +41,7 @@ namespace {
     const unsigned int WordBits = WordBytes * CHAR_BIT;
     typedef quint64 DWordType;
 
-    enum Flags { IsNull = 0x01, InValid = 0x02 };
+    enum Flags { SignFlag = 0x1, IsNull = 0x02, InValid = 0x04 };
 
     void shrink_vec(QBigInt::DataType & d) {
         while ((d.size()) > 0 && (d.back() == 0)) {
@@ -973,4 +983,36 @@ QBigInt operator-(const QBigInt &a, const QBigInt::WordType v)
     QBigInt ret(a);
     ret -= QBigInt(v);
     return ret;
+}
+
+QDataStream &operator<<(QDataStream &out, const QBigInt &obj)
+{
+    unsigned char flags = obj.flags();
+    if (obj.isNegative()) {
+        flags |= SignFlag;
+    }
+    out << flags;
+    if (obj.isValid()) {
+        // Only write the array if object is valid.
+        out << obj.toLittleEndianBytes();
+    }
+    return out;
+}
+
+QDataStream &operator>>(QDataStream &in, QBigInt &obj)
+{
+    unsigned char flags = 0;
+    QByteArray bytes;
+    in >> flags;
+    bool sign = (flags & SignFlag) != 0;
+    flags &= (~(unsigned int)SignFlag); // Clear the sign flag.
+    if (flags == 0) {
+        in >> bytes;
+        obj = QBigInt(bytes);
+    }
+    if (sign) {
+        obj.negate();
+    }
+    obj.setFlags(flags);
+    return in;
 }

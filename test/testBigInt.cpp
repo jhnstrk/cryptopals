@@ -3,6 +3,7 @@
 #include <qbigint.h>
 
 #include <QByteArray>
+#include <QDataStream>
 #include <QDebug>
 #include <QTest>
 
@@ -371,4 +372,51 @@ void TestBigInt::testDivideBad()
 {
     QVERIFY( !(QBigInt::zero() / QBigInt::zero()).isValid() );
     QVERIFY( !(QBigInt::one() / QBigInt::zero()).isValid() );
+}
+
+void TestBigInt::testMetaType()
+{
+    const QBigInt anum("124e51522a31413fd2412ff4123b4",16);
+    const QBigInt zero = QBigInt::zero();
+    const QBigInt minus100 = QBigInt("-100",10);
+    const QBigInt def = QBigInt();
+
+    QVariantList alist  = QVariantList()
+            << QVariant::fromValue(anum)
+            << QVariant::fromValue(zero)
+            << QVariant::fromValue(minus100)
+            << QVariant::fromValue(def);
+
+    QCOMPARE(alist.at(0).value<QBigInt>(), anum);
+    QCOMPARE(alist.at(1).value<QBigInt>(), zero);
+    QCOMPARE(alist.at(2).value<QBigInt>(), minus100);
+    QCOMPARE(alist.at(3).value<QBigInt>(), def);
+}
+
+void TestBigInt::testDataStream()
+{
+    QBigInt anum("124e51522a31413fd2412ff4123b4",16);
+    QBigInt zero = QBigInt::zero();
+    QBigInt minus100 = QBigInt("-100",10);
+    QBigInt def = QBigInt();
+
+    QByteArray buffer;
+    {
+        QDataStream  writer(&buffer,QIODevice::WriteOnly);
+        writer << anum << zero << def << minus100;
+        writer << anum << zero << def << minus100;
+    }
+
+    QDataStream reader(&buffer,QIODevice::ReadOnly);
+
+    // Check we get back what we put in
+    QBigInt v;
+    reader >> v; QCOMPARE(v, anum);
+    reader >> v; QCOMPARE(v, zero);
+    reader >> v; QCOMPARE(v, def);
+    reader >> v; QCOMPARE(v, minus100);
+    reader >> v; QCOMPARE(v, anum);
+    reader >> v; QCOMPARE(v, zero);
+    reader >> v; QCOMPARE(v, def);
+    reader >> v; QCOMPARE(v, minus100);
 }

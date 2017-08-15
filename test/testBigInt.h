@@ -24,4 +24,7 @@ private slots:
     void testDivide();
 
     void testDivideBad();
+
+    void testMetaType();
+    void testDataStream();
 };
