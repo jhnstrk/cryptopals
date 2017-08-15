@@ -15,4 +15,5 @@ private slots:
 
     // Diffie Hellman MITM
     void testChallenge34_1();
+    void testChallenge34_2();
 };

@@ -81,6 +81,8 @@ void TestSet5::testChallenge33_1()
     // Do the same with A**b, check that you come up with the same "s".
     quint64 s_a = mod_exp(A,b,p);
 
+    // The point is that users Alice and Bob can exchange a key, s, without having
+    // to pass the value in clear.
     QCOMPARE( s, s_a);
 
     // To turn "s" into a key, you can just hash it to create 128 bits
@@ -119,7 +121,188 @@ void TestSet5::testChallenge33_2()
     QVERIFY(!s_key.isNull());
 }
 
+
+namespace {
+
+    class IAlice {
+    public:
+        virtual void receivePeerPubKey(const QBigInt & B) = 0;
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) = 0;
+    };
+
+    class IBob {
+    public:
+        virtual void receiveDHParam(const QBigInt & p, const QBigInt & g, const QBigInt & A) = 0;
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) = 0;
+    };
+    
+    class Alice : public IAlice{
+    public:
+        Alice() :
+            m_p( QString(nist_p) , 16),
+            m_g(5)
+        {
+        }
+        
+        virtual ~Alice() {}
+        void sendDHParam(IBob & b) Q_DECL_OVERRIDE;
+        virtual void receivePeerPubKey(const QBigInt & B) Q_DECL_OVERRIDE;
+
+        void sendEncryptedMessage(IBob & b);
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) Q_DECL_OVERRIDE;
+
+    private:
+        QBigInt m_B;
+        QBigInt m_p, m_g, m_a, m_A;
+        QByteArray m_s; // Session key
+    };
+
+    class Bob : public IBob{
+    public:
+        Bob() {}
+        virtual ~Bob() {}
+        
+        virtual void receiveDHParam(const QBigInt & p, const QBigInt & g, const QBigInt & A);
+        
+        void sendPublicKey(IAlice & a);
+
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc);
+        void sendEncryptedMessage(IAlice & b);
+    private:
+        QBigInt m_A;
+        QBigInt m_p, m_g, m_b, m_B;
+        QByteArray m_s; // Session key
+        QByteArray m_message;
+    };
+
+    void Alice::sendDHParam(IBob &b)
+    {
+        m_a = randomValue(m_p);  // Private key
+        m_A = m_g.modExp(m_a,m_p);  // Public key
+        b.receiveDHParam(m_p,m_g,m_A);
+    }
+
+    void Alice::receivePeerPubKey(const QBigInt &B)
+    {
+        m_B = B;
+        m_s = qossl::Sha1::hash(m_B.modExp(m_a,m_p).toLittleEndianBytes());
+        m_s = m_s.left(qossl::AesBlockSize);
+    }
+
+    void Alice::sendEncryptedMessage(IBob &b){
+        const QByteArray message = "Implement a MITM key-fixing attack on Diffie-Hellman with parameter injection";
+        const QByteArray iv = qossl::randomBytes(qossl::AesBlockSize);
+        const QByteArray enc = qossl::aesCbcEncrypt(qossl::pkcs7Pad(message,qossl::AesBlockSize),m_s,iv);
+        b.receiveEncryptedMessage(iv,enc);
+    }
+
+    void Alice::receiveEncryptedMessage(const QByteArray &iv, const QByteArray &enc){
+        const QByteArray message = qossl::pkcs7Unpad(qossl::aesCbcDecrypt(enc,m_s,iv));
+        qDebug() << "Alice got message" << message;
+    }
+    void Bob::receiveDHParam(const QBigInt &p, const QBigInt &g, const QBigInt &A)
+    {
+        m_p = p;
+        m_g = g;
+        m_A = A;
+
+        m_b = randomValue(m_p);  // Private key
+        m_B = m_g.modExp(m_b,m_p);  // Public key
+
+        m_s = qossl::Sha1::hash(m_A.modExp(m_b,m_p).toLittleEndianBytes());
+        m_s = m_s.left(qossl::AesBlockSize);
+    }
+
+    void Bob::sendPublicKey(IAlice &a){
+        a.receivePeerPubKey(m_B);
+    }
+
+    void Bob::receiveEncryptedMessage(const QByteArray &iv, const QByteArray &enc){
+        const QByteArray message = qossl::pkcs7Unpad(qossl::aesCbcDecrypt(enc,m_s,iv));
+        qDebug() << "Bob got message" << message;
+        m_message = message;
+    }
+
+    void Bob::sendEncryptedMessage(IAlice &a){
+        const QByteArray iv = qossl::randomBytes(qossl::AesBlockSize);
+        const QByteArray enc = qossl::aesCbcEncrypt(qossl::pkcs7Pad(m_message,qossl::AesBlockSize),m_s,iv);
+        a.receiveEncryptedMessage(iv,enc);
+    }
+}
 void TestSet5::testChallenge34_1()
 {
-
+    Alice a;
+    Bob b;
+    a.sendDHParam(b);
+    b.sendPublicKey(a);
+    a.sendEncryptedMessage(b);
+    b.sendEncryptedMessage(a);
 }
+
+namespace {
+    class Mallory : public IAlice, public IBob {
+    public:
+        Mallory(Alice & a, Bob & b)
+            : m_alice(a), m_bob(b),m_count(0)
+        {
+            m_s = qossl::Sha1::hash(QBigInt::zero().toLittleEndianBytes());
+            m_s = m_s.left(qossl::AesBlockSize);
+        }
+
+        virtual void receiveDHParam(const QBigInt & p, const QBigInt & g, const QBigInt & A) Q_DECL_OVERRIDE
+        {
+            // Take a copy.
+            m_p = p;
+            m_g = g;
+            m_A = A;
+
+            // Mess with parameters.
+            m_bob.receiveDHParam(p,g,p);
+        }
+
+        virtual void receivePeerPubKey(const QBigInt & B) Q_DECL_OVERRIDE
+        {
+            m_B = B;
+            // Send p instead of public key.
+            m_alice.receivePeerPubKey(m_p);
+        }
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) Q_DECL_OVERRIDE
+        {
+            if (m_count & 1) {
+                m_alice.receiveEncryptedMessage(iv,enc);
+            } else {
+                m_bob.receiveEncryptedMessage(iv,enc);
+            }
+            const QByteArray message = qossl::pkcs7Unpad(qossl::aesCbcDecrypt(enc,m_s,iv));
+            qDebug() << "Mallory read message" << message;
+
+            ++m_count;
+        }
+
+    private:
+        Alice & m_alice;
+        Bob & m_bob;
+
+        QBigInt m_p;
+        QBigInt m_g;
+        QBigInt m_A, m_B;
+        unsigned int m_count;
+        QByteArray m_s;
+    };
+}
+
+void TestSet5::testChallenge34_2()
+{
+    Alice a;
+    Bob b;
+    Mallory m(a,b);
+    a.sendDHParam(m);
+    b.sendPublicKey(m);
+    a.sendEncryptedMessage(m);
+    b.sendEncryptedMessage(m);
+
+    // Theory:
+    // By setting the public key to 'p' the session key will become the sha1-hash of zero;
+    // since p % p == 0, raising p to any power x (mod p) is always zero.
+}
+
