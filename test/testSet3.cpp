@@ -353,7 +353,7 @@ void TestSet3::testChallenge22()
     // simulate wait.
     const qint64 t2 = t1 + 40 + (randomUInt() % 1000);
 
-    twister.seed(t2);
+    twister.seed(static_cast<quint32>(t2));
     const unsigned int value = twister.extract_number();
 
     // simulate wait.
@@ -521,7 +521,9 @@ quint16 recoverKey(const QByteArray & cipherText, const QByteArray & plain, bool
 
 QByteArray makePasswordResetToken()
 {
-    TwisterByteStream stream(QDateTime::currentMSecsSinceEpoch() / 1000);
+    TwisterByteStream stream(
+                             static_cast<quint32>(
+                             QDateTime::currentMSecsSinceEpoch() / 1000));
     QByteArray randomBytes;
     randomBytes.reserve(16);
     for (int i=0; i<16; ++i) {
@@ -532,7 +534,7 @@ QByteArray makePasswordResetToken()
 
 bool isFromMtPRNGwithTime(const QByteArray & bytes, qint64 now = QDateTime::currentMSecsSinceEpoch() / 1000)
 {
-    TwisterByteStream stream(now);
+    TwisterByteStream stream(static_cast<quint32>(now));
     for (int i =0; i<bytes.size(); ++i) {
         if ((unsigned char)(bytes.at(i)) != stream.sample()) {
             return false;

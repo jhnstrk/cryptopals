@@ -44,33 +44,37 @@ namespace {
     enum Flags { SignFlag = 0x1, IsNull = 0x02, InValid = 0x04 };
 
     void shrink_vec(QBigInt::DataType & d) {
-        while ((d.size()) > 0 && (d.back() == 0)) {
-            d.removeLast();
+        int count = 0;
+        for (int i=d.size()-1; i>=0 && d.at(i) == 0; --i) {
+            ++count;
+        }
+        if (count != 0) {
+            d.resize(d.size() - count);
         }
     }
 
     void unsigned_setBit(QBigInt::DataType & d, unsigned int n)
     {
-        const unsigned int iw = n / WordBits;
-        n -= iw * WordBits;
+        const unsigned int iw = n / WordBits;  // Word number
+        const unsigned int ip = n % WordBits;  // bit position in word
         if (iw >= static_cast<unsigned int>(d.size())) {
             d.resize(iw + 1);
         }
-        d[iw] |= (1u << n);
+        d[iw] |= (QBigInt::WordType(1) << ip);
     }
 
-    bool unsigned_testBit(const QBigInt::DataType & d, unsigned int n)
+    bool unsigned_testBit(const QBigInt::DataType & d, const unsigned int n)
     {
-        const unsigned int iw = n / WordBits;
-        n -= iw * WordBits;
+        const unsigned int iw = n / WordBits;  // Word number
+        const unsigned int ip = n % WordBits;  // bit position in word
         if (iw >= static_cast<unsigned int>(d.size())) {
             return false;
         }
-        return ( (d.at(iw) & (QBigInt::WordType(1) << n)) != 0);
+        return ( ((d.at(iw) >> ip) & (QBigInt::WordType(1))) != 0);
     }
 
     // Compare magnitudes only, ignoring signs,
-    // return -1, 0, or 1 for a<b, a==b, b<a
+    // return -1, 0, or 1 for a<b, a==b, a>b
     int unsigned_compare(const QBigInt::DataType & x, const QBigInt::DataType & y)
     {
         // Sign is same
@@ -148,12 +152,16 @@ namespace {
 
         quint64 borrow = 0;
 
+        const int ySz = y.size();
+        const QBigInt::WordType * yp = y.constData();
+        const QBigInt::WordType * xp = x.constData();
+        QBigInt::WordType * vp = v.data();
         for (int i=0; i<mx; ++i) {
             quint64 y_i = borrow;
-            if (i < y.size()) {
-                y_i += y.at(i);
+            if (i < ySz) {
+                y_i += yp[i];
             }
-            quint64 x_i = x.at(i);
+            quint64 x_i = xp[i];
             if (y_i > x_i) {
                 borrow = 1;
                 x_i += (quint64(1) << WordBits);
@@ -161,7 +169,7 @@ namespace {
                 borrow = 0;
             }
 
-            v[i] = x_i - y_i;
+            vp[i] = static_cast<QBigInt::WordType>(x_i - y_i);
         }
 
         shrink_vec(v);
@@ -198,7 +206,7 @@ namespace {
             tmp >>= WordBits;
         }
         if (tmp != 0) {
-            x.push_back(tmp);
+            x.push_back(static_cast<QBigInt::WordType>(tmp));
         }
     }
 
@@ -253,37 +261,66 @@ namespace {
         const unsigned int r = v % WordBits;
         const int initSize = d.size();
 
-        d.resize(initSize + n + (r != 0 ? 1 : 0));
+        const bool extra = (r != 0) && ( (d.back() >> (WordBits - r)) != 0 );
+
+        d.resize(initSize + n + (extra ? 1 : 0));
+
         const int sz = d.size();
 
+        QBigInt::WordType * d_ = d.data();
         if (n != 0) {
             // Do whole word shift
             for (int i=sz -1; i>=n; --i) {
-                d[i] = d.at(i-n);
+                d_[i] = d_[i-n];
             }
             for (int i=n -1; i>=0; --i) {
-                d[i] = 0;
+                d_[i] = 0;
             }
         }
 
         if ( r != 0) {
             // Bit shift.
-            for (int i=sz -1; i>=n; --i) {
-                QBigInt::WordType high;
-                if (i - 1 >= 0) {
-                    high = (DWordType(d.at(i - 1)) >> (WordBits - r));
-                } else {
-                    high = 0;
-                }
-
-                high |= (DWordType(d.at(i)) << r);
-
-                d[i] = high & Mask32;
+            QBigInt::WordType prev = 0;
+            if ( n > 0 ) {
+                prev = d_[n - 1];
             }
-            if (d.back() == 0) {
-                d.removeLast();
+            for (int i=n; i<sz; ++i) {
+                QBigInt::WordType high = (prev >> (WordBits - r));
+
+                high |= (d_[i] << r);
+
+                prev = d_[i];
+                d_[i] = high;
             }
         }
+
+    }
+
+    void unsigned_lshift_1(QBigInt::DataType & d)
+    {
+        if (d.isEmpty()) {
+            return;
+        }
+        const int initSize = d.size();
+
+        const bool extra = ( (d.back() >> (WordBits - 1)) != 0 );
+
+        d.resize(initSize + (extra ? 1 : 0));
+
+        const int sz = d.size();
+
+        QBigInt::WordType * d_ = d.data();
+
+            // Bit shift.
+            QBigInt::WordType prev = 0;
+            for (int i=0; i<sz; ++i) {
+                QBigInt::WordType high = (prev >> (WordBits - 1));
+
+                high |= (d_[i] << 1);
+
+                prev = d_[i];
+                d_[i] = high;
+            }
 
     }
 
@@ -327,12 +364,12 @@ namespace {
         QBigInt::DataType q, r;
 
         for (int i = highBitNum; i >= 0; --i) {
-            unsigned_lshift(r, 1);
-            if (unsigned_testBit(num,i)) {
-                unsigned_setBit(r,0);
+            unsigned_lshift_1(r);              // r = r << 1
+            if (unsigned_testBit(num,i)) {      // num_i ?
+                unsigned_setBit(r,0);           // r_0 = 1
             }
-            if ( unsigned_compare(r,den) >= 0 ) {
-                unsigned_subtract(r,r,den);
+            if ( unsigned_compare(r,den) >= 0 ) { // r >= den ?
+                unsigned_subtract(r,r,den);    // r = r - den
                 unsigned_setBit(q,i);
             }
         }
@@ -963,6 +1000,7 @@ QBigInt QBigInt::modExp(const QBigInt &p, const QBigInt &m) const
     for (int i=0; i<nb; ++i) {
         if (p.testBit(i)) {
             ytmp *= xtmp;
+            ytmp = (ytmp % m);
         }
         xtmp *= xtmp;
         xtmp = (xtmp % m);

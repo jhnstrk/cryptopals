@@ -104,7 +104,7 @@ unsigned int hammingDistance(const QByteArray &s1, const QByteArray &s2)
     // This could be more efficient by working in blocks or 4 or 8 bytes.
     if (s1.size() != s2.size()) {
         qCritical() << "Size mismatch";
-        return std::numeric_limits<size_t>::max();
+        return std::numeric_limits<unsigned int>::max();
     }
 
     unsigned int result = 0;
@@ -368,10 +368,10 @@ QByteArray aesCtrKeyStream(const QByteArray & key, quint64 nonce, quint64 first,
     quint64 counter = first / qossl::AesBlockSize;
 
     // lead-in: The offset within the first block.
-    const int leadin = (first - counter * qossl::AesBlockSize);
+    const int leadin = static_cast<int>(first - counter * qossl::AesBlockSize);
 
     QByteArray keyStream;
-    keyStream.reserve(len + leadin);
+    keyStream.reserve(static_cast<int>(len) + leadin);
 
     for (int i = -leadin; i<(int)len; i+=AesBlockSize ) {
         copyUint64(countblock,8,counter);
@@ -380,7 +380,7 @@ QByteArray aesCtrKeyStream(const QByteArray & key, quint64 nonce, quint64 first,
         ++counter;
     }
 
-    return keyStream.mid(leadin,len);
+    return keyStream.mid(leadin,static_cast<int>(len));
 }
 
 
@@ -535,11 +535,9 @@ int detectBlockSize( EncryptionOracle & oracle )
     }
 
     int sz2 = 0;
-    int i2 = 0;
     for(int i=i1+1; i<MaxBlock; ++i) {
         sz2 = oracle.encrypt(QByteArray(i,'A')).size();
         if (sz2 != sz1) {
-            i2 = i;
             break;
         }
     }
