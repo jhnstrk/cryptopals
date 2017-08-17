@@ -296,6 +296,7 @@ namespace {
 
     }
 
+    // d <<= 1;  This is heavily used by divide; hence optimized.
     void unsigned_lshift_1(QBigInt::DataType & d)
     {
         if (d.isEmpty()) {
@@ -311,17 +312,16 @@ namespace {
 
         QBigInt::WordType * d_ = d.data();
 
-            // Bit shift.
-            QBigInt::WordType prev = 0;
-            for (int i=0; i<sz; ++i) {
-                QBigInt::WordType high = (prev >> (WordBits - 1));
+        // Bit shift.
+        QBigInt::WordType prev = 0;
+        for (int i=0; i<sz; ++i) {
+            QBigInt::WordType high = (prev >> (WordBits - 1));
 
-                high |= (d_[i] << 1);
+            high |= (d_[i] << 1);
 
-                prev = d_[i];
-                d_[i] = high;
-            }
-
+            prev = d_[i];
+            d_[i] = high;
+        }
     }
 
     void unsigned_rshift(QBigInt::DataType & d, unsigned int v)

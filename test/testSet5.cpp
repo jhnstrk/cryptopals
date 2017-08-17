@@ -99,15 +99,9 @@ void TestSet5::testChallenge33_2()
     // Generate "a", a random number mod p.
     QBigInt a = randomValue(p);
 
-    // Now generate "A", which is "g" raised to the "a" power mode 37 --- A = (g**a) % p.
+    // Now generate "A", which is "g" raised to the "a" power mod p --- A = (g**a) % p.
     QBigInt A = g.modExp(a,p);
 
-    {
-        QBigInt t2 = A * A;
-    QBENCHMARK {
-        QBigInt s = t2 % p;
-    }
-    }
     // Do the same for "b" and "B".
     QBigInt b = randomValue(p);
     QBigInt B = g.modExp(b,p);

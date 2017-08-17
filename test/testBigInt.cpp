@@ -246,6 +246,11 @@ void TestBigInt::testConstructors()
 
     QCOMPARE( QBigInt(QByteArray::fromHex("0102030405060708091a1b1c")).toString(16),
               QString("1c1b1a090807060504030201"));
+
+    // Trailing zeros should be ok.
+    QVERIFY( QBigInt(QByteArray::fromHex("000000000000")).isZero() );
+    QCOMPARE( QBigInt(QByteArray::fromHex("01000000000000")).toString(),
+              QString("1"));
 }
 
 void TestBigInt::testString_data()
