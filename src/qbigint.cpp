@@ -14,6 +14,19 @@ namespace {
 
   QBigIntMetaTypeInitializer QBigIntMetaTypeInitializer::m_obj;
 
+  QByteArray Hx( const quint64 n ) { return QByteArray::number(n,16); }
+
+  QByteArray dump(const QBigInt::DataType &v) {
+      QByteArray buffer;
+      for (int i=0; i<v.size(); ++i) {
+          if (i > 0) {
+              buffer += ", ";
+          }
+          buffer += QByteArray::number(v.at(i),16);
+      }
+      return buffer;
+  }
+
   char valueToChar(unsigned int value)
   {
       if (value < 10) {
@@ -357,7 +370,9 @@ namespace {
         }
 
     }
-    QPair<QBigInt::DataType, QBigInt::DataType> unsigned_divide(const QBigInt::DataType &num, const QBigInt::DataType &den)
+
+    // The simplest method
+    QPair<QBigInt::DataType, QBigInt::DataType> unsigned_divide_1(const QBigInt::DataType &num, const QBigInt::DataType &den)
     {
         const int highBitNum = highBitPosition(num);
 
@@ -376,6 +391,146 @@ namespace {
 
         typedef QPair<QBigInt::DataType, QBigInt::DataType>  ReturnType;
         return ReturnType(q, r);
+    }
+
+
+    // u -> u - (xv  << N)
+    QBigInt::WordType subMulWord(const int j, QBigInt::DataType &u, const QBigInt::WordType x, const QBigInt::DataType &v)
+    {
+        if (x == 0) {
+            return 0;
+        }
+
+        DWordType tmp = 0;
+        const int u0 = u.size() - v.size() - j - 1;
+        for (int i=0; i<v.size()+1; ++i) {
+            if (i<v.size()) {
+                tmp += DWordType(v.at(i)) * x;
+            }
+            DWordType mv_i = tmp & Mask32;
+
+            tmp >>= WordBits;
+            DWordType u_ix = u.at(i + u0);
+
+            if (u_ix < mv_i) {
+                ++tmp;  // borrow
+                u_ix += (DWordType(1) << WordBits);
+            }
+            u[i + u0] = u_ix - mv_i;
+        }
+        if (tmp != 0) {
+            qWarning() << "Underflow" << tmp;
+        }
+        return tmp;
+    }
+
+    QBigInt::WordType addBack(const int j, QBigInt::DataType &u, const QBigInt::DataType &v)
+    {
+        DWordType carry = 0;
+        const int u0 = u.size() - v.size() - j - 1;
+
+        for (int i=0; i<=v.size(); ++i) {
+            if (i<v.size()) {
+                carry += v.at(i);
+            }
+            carry += u.at(i + u0);
+            u[i + u0] = carry & Mask32;
+            carry >>= WordBits;
+        }
+        return carry;
+    }
+    // Knuth, Algrithm D method.
+    // From The Art of Computer Programming, section 4.3.1
+    QPair<QBigInt::DataType, QBigInt::DataType> unsigned_divide_k(const QBigInt::DataType &num, const QBigInt::DataType &den)
+    {
+        QBigInt::DataType u, v, q;
+        u = num;
+        v = den;
+
+        // D1
+        const unsigned int dShift = WordBits - 1 - highBitPosition(v.back());
+        if (dShift != 0) {
+            // Multiply u,v by d. d = 2**dShift
+            unsigned_lshift(u,dShift);
+            unsigned_lshift(v,dShift);
+        }
+
+        if (u.size() == num.size()) {
+            u.push_back(0); // Create u_0
+        }
+
+        const int u0 = u.size() - 1;
+        const int v1 = v.size() - 1;
+        const int n = den.size();
+        const int m = num.size() - n;
+        //D2
+        for (int j = 0; j<=m; ++j) {
+
+            DWordType qHat = 0;
+
+            // D3
+            if (u.at(u0 - j) == v.back()) {
+                qHat = Mask32;  // b - 1
+            } else {
+                qHat = ((DWordType(u.at(u0 - j)) << WordBits) + DWordType(u.at(u0 - j - 1))) /
+                        DWordType(v.back());
+            }
+
+            for (int iLoop = 0; iLoop <2; ++iLoop) {
+                if ( (v.at(v1 - 1) * qHat) >
+                      ( ( ( (DWordType(u.at(u0 - j)) << WordBits) + u.at(u0 - j - 1) - qHat*v.at(v1) )
+                     << WordBits)  + u.at(u0 - 2)) )
+                {
+                    --qHat;
+                } else {
+                    break;
+                }
+            }
+
+            // D4: u = u - (qHat*v << N)
+            const QBigInt::WordType carry = subMulWord(j,u,qHat,v);
+
+            // D5: Test carry
+            if(carry != 0) {
+                // D6: u += (v << N)
+                --qHat;
+                const QBigInt::WordType carry2 = addBack(j,u,v);
+                if (carry2 == 0) {
+                    qDebug() << "Bad carry" << carry2;
+                }
+            }
+            q.push_front(qHat);
+
+            // D7...
+        }
+
+        // D8: Unnormalize remainder
+        QBigInt::DataType r = u.mid(0,v.size());
+        unsigned_rshift(r,dShift);
+
+        shrink_vec(q);
+        shrink_vec(r);
+        typedef QPair<QBigInt::DataType, QBigInt::DataType>  ReturnType;
+        return ReturnType(q, r);
+    }
+
+    QPair<QBigInt::DataType, QBigInt::DataType> unsigned_divide(const QBigInt::DataType &num, const QBigInt::DataType &den)
+    {
+        typedef QPair<QBigInt::DataType, QBigInt::DataType>  ReturnType;
+        if (den.size() == 1) {
+            QBigInt::WordType v = den.at(0);
+            QBigInt::WordType rW = 0;
+            QBigInt::DataType q = num;
+            unsigned_divide(q, v, rW);
+            QBigInt::DataType r;
+            if (rW != 0) {
+                r.append(rW);
+            }
+            return ReturnType(q, r);
+        }
+
+        ReturnType t =  unsigned_divide_k(num,den);
+        return t;
     }
 }
 
