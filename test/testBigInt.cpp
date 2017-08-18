@@ -103,11 +103,11 @@ void TestBigInt::testBasicOperators()
     QCOMPARE( ((one << 312) >> 300).toString(16), QString::number(1LL << 12, 16));
 
     // from String
-    QCOMPARE( QBigInt("-1",10).toString(), QString::number(-1) );
-    QCOMPARE( QBigInt("9abcd",16).toString(16), QString::number(0x9abcd, 16) );
-    QCOMPARE( QBigInt("9abcdef0123456789abcdef",16).toString(16), QString("9abcdef0123456789abcdef") );
+    QCOMPARE( QBigInt::fromString("-1",10).toString(), QString::number(-1) );
+    QCOMPARE( QBigInt::fromString("9abcd",16).toString(16), QString::number(0x9abcd, 16) );
+    QCOMPARE( QBigInt::fromString("9abcdef0123456789abcdef",16).toString(16), QString("9abcdef0123456789abcdef") );
 
-    const QBigInt t1("9abcdef0123456789abcdef",16);
+    const QBigInt t1 = QBigInt::fromString("9abcdef0123456789abcdef",16);
     QCOMPARE( (t1 << 36).toString(16), QString("9abcdef0123456789abcdef000000000") );
     QCOMPARE( (t1 << 32).toString(16), QString("9abcdef0123456789abcdef00000000") );
     QCOMPARE( (t1 << 28).toString(16), QString("9abcdef0123456789abcdef0000000") );
@@ -129,11 +129,11 @@ void TestBigInt::testBasicOperators()
 
     qDebug() << "Decimal";
     // Decimal numbers
-    QCOMPARE( (QBigInt("1234567890123456789",10) * 10).toString(10),
+    QCOMPARE( (QBigInt::fromString("1234567890123456789",10) * 10).toString(10),
               QString( "12345678901234567890") );
-    QCOMPARE( (QBigInt("-1234567890123456789",10) * 10).toString(10),
+    QCOMPARE( (QBigInt::fromString("-1234567890123456789",10) * 10).toString(10),
               QString( "-12345678901234567890") );
-    QCOMPARE( (QBigInt("1234567890",10) * QBigInt("1000000",10)).toString(10),
+    QCOMPARE( (QBigInt::fromString("1234567890",10) * QBigInt::fromString("1000000",10)).toString(10),
               QString( "1234567890000000") );
 
     qDebug() << "Bit Positions";
@@ -244,12 +244,12 @@ void TestBigInt::testConstructors()
                   QString::number(std::numeric_limits<T>::min()) );
     }
 
-    QCOMPARE( QBigInt(QByteArray::fromHex("0102030405060708091a1b1c")).toString(16),
+    QCOMPARE( QBigInt::fromLittleEndianBytes(QByteArray::fromHex("0102030405060708091a1b1c")).toString(16),
               QString("1c1b1a090807060504030201"));
 
     // Trailing zeros should be ok.
-    QVERIFY( QBigInt(QByteArray::fromHex("000000000000")).isZero() );
-    QCOMPARE( QBigInt(QByteArray::fromHex("01000000000000")).toString(),
+    QVERIFY( QBigInt::fromLittleEndianBytes(QByteArray::fromHex("000000000000")).isZero() );
+    QCOMPARE( QBigInt::fromLittleEndianBytes(QByteArray::fromHex("01000000000000")).toString(),
               QString("1"));
 }
 
@@ -275,7 +275,7 @@ void TestBigInt::testString()
     const QFETCH( int, base);
     const QFETCH( QString, str);
 
-    const QBigInt anum = QBigInt(str,base);
+    const QBigInt anum = QBigInt::fromString(str,base);
     const QString actual = anum.toString(base);
 
     QCOMPARE(actual, str);
@@ -298,16 +298,19 @@ void TestBigInt::testBytes()
 {
     const QFETCH( QString, number);
 
-    const QBigInt anum = QBigInt(number,10);
+    const QBigInt anum = QBigInt::fromString(number,10);
     const QByteArray bytes = anum.toLittleEndianBytes();
-    const QBigInt anum2 = QBigInt(bytes);
+    const QBigInt anum2 = QBigInt::fromLittleEndianBytes(bytes);
 
     QCOMPARE(anum2, anum);
 }
 
 namespace {
     QString Q(const char * x) { return QString(x); }
-    QString N(qint64 x) { return QString::number(x); }
+    QString N(qint64 x) {
+        return (x < 0) ? QString("-") + QString::number(-x,16)
+                       : QString::number(x,16);
+    }
 }
 void TestBigInt::testDivide_data()
 {
@@ -315,18 +318,18 @@ void TestBigInt::testDivide_data()
     QTest::addColumn<QString>("denominator");
     QTest::addColumn<QString>("quotient");
     QTest::addColumn<QString>("remainder");
+#if 0
+    QTest::newRow("0/1")   <<  "0" <<  "1" <<  "0" << "0";
+    QTest::newRow("0/-1")  <<  "0" << "-1" <<  "0" << "0";
+    QTest::newRow("1/1")   <<  "1" <<  "1" <<  "1" << "0";
+    QTest::newRow("1/-1")  <<  "1" << "-1" << "-1" << "0";
+    QTest::newRow("-1/1")  << "-1" <<  "1" << "-1" << "0";
+    QTest::newRow("-1/-1") << "-1" << "-1" <<  "1" << "0";
 
-    QTest::newRow("0/1")  << N(0) << N( 1) << N(0/ 1) << N(0%1);
-    QTest::newRow("0/-1") << N(0) << N(-1) << N(0/-1) << N(0%-1);
-    QTest::newRow("1/1")  << N(1) << N( 1) << N(1/ 1) << N(1%1);
-    QTest::newRow("1/-1") << N(1) << N(-1) << N(1/-1) << N(1%-1);
-    QTest::newRow("-1/1")  << N(-1) << N( 1) << N(-1/ 1) << N(-1%1);
-    QTest::newRow("-1/-1") << N(-1) << N(-1) << N(-1/-1) << N(-1%-1);
-
-    QTest::newRow("9/13")   << N( 9) << N( 13) << N( 9/ 13) << N( 9% 13);
-    QTest::newRow("9/-13")  << N( 9) << N(-13) << N( 9/-13) << N( 9%-13);
-    QTest::newRow("-9/13")  << N(-9) << N( 13) << N(-9/ 13) << N(-9% 13);
-    QTest::newRow("-9/-13") << N(-9) << N(-13) << N(-9/-13) << N(-9%-13);
+    QTest::newRow("8/9")   <<  "8" <<  "9" << "0" <<  "8";
+    QTest::newRow("8/-9")  <<  "8" << "-9" << "0" <<  "8";
+    QTest::newRow("-8/9")  << "-8" <<  "9" << "0" << "-8";
+    QTest::newRow("-8/-9") << "-8" << "-9" << "0" << "-8";
 
     const qint64 x = (qint64(1) << 41) * 1234;
     QTest::newRow("x/41")   << N( x) << N( 41) << N( x/ 41) << N( x% 41);
@@ -339,15 +342,39 @@ void TestBigInt::testDivide_data()
     QTest::newRow("-1024/64")  << N(-1024) << N( 64) << N(-1024/ 64) << N(-1024% 64);
     QTest::newRow("-1024/-64") << N(-1024) << N(-64) << N(-1024/-64) << N(-1024%-64);
 
+    const QBigInt A = QBigInt::fromString("908723affccc0987988971010019871398710937aaaacccdddffffff097897987097",16);
+    const QBigInt B = QBigInt::fromString("fff98131341abcdefdef09891379831ff441122ff",16);
+
+    QTest::newRow("A/A")  << A.toString() << A.toString() << QString("1") << QString("0");
+    QTest::newRow("A/-A") << A.toString() << (-A).toString() << QString("-1")  << QString("0");
+    QTest::newRow("-A/A")  << (-A).toString() << A.toString() << QString("-1") << QString("0");
+    QTest::newRow("-A/-A") << (-A).toString() << (-A).toString() << QString("1") << QString("0");
+
+    QTest::newRow("(A-1)/A")  << (A - 1).toString() << A.toString() << QString("0") << (A - 1).toString();
+    QTest::newRow("A/(A-1)") << A.toString() << (A-1).toString() << QString("1") << QString("1");
+
     // According to python:
-    QTest::newRow("Big div") << Q("1234568789012098741234124214241242")
-                             << Q("12441239876663111")
-                             << Q("99231973762346974")
-                             << Q("7603865325965128");
-    QTest::newRow("Big div2") << Q("98726149876234876498761283746938214769823641123")
-                             << Q("10000000000000000000000001")
-                             << Q("9872614987623487649876")
-                             << Q("1273874323227146335991247");
+    QTest::newRow("Big div") << Q("3cde72e72245ca606d3b35f807da")
+                             << Q("2c333de369f747")
+                             << Q("1608af452772fde")
+                             << Q("1b03acdbac8f48");
+
+    QTest::newRow("Big div2") << Q("114b089ea5164b74af9a29a675ee2b758ba4ee23")
+                             << Q("84595161401484a000001")
+                             << Q("217320e4fe3377e3854")
+                             << Q("10dc0dd8d33aa0c26b5cf");
+#endif
+
+// Correct:
+    QTest::newRow("Big div3") << Q("325d9d61a05d4305d9434f4a3c62d433949ae6209d4926c3f5bd2db49ef47187094c1a6970ca7e6bd2a73c5534936a8de061e8d4649f4f3235e005b80411640114a88bc491b9fc4ed520190fba035faaba6c356e38a31b5653f445975836cb0b6c975a351a28e4262ce3ce3a0b8df68368ae26a7b7e976a3310fc8f1f9031eb0f669a20288280bda5a580d98089dc1a47fe6b7595fb101a3616b6f4654b31fb6bfdf56deeecb1b896bc8fc51a16bf3fdeb3d814b505ba34c4118ad822a51abe1de3045b7a748e1042c462be695a9f9f2a07a7e89431922bbb9fc96359861c5cd134f451218b65dc60d7233e55c7231d2b9c9fce837d1e43f61f7de16cfb896634ee0ed1440ecc2cd8194c7d1e1a140ac53515c51a88991c4e871ec29f866e7c215bf55b2b722919f001")
+     << Q("ffffffffffffffffc90fdaa22168c234c4c6628b80dc1cd129024e088a67cc74020bbea63b139b22514a08798e3404ddef9519b3cd3a431b302b0a6df25f14374fe1356d6d51c245e485b576625e7ec6f44c42e9a637ed6b0bff5cb6f406b7edee386bfb5a899fa5ae9f24117c4b1fe649286651ece45b3dc2007cb8a163bf0598da48361c55d39a69163fa8fd24cf5f83655d23dca3ad961c62f356208552bb9ed529077096966d670c354e4abc9804f1746c08ca237327ffffffffffffffff")
+     << Q("325d9d61a05d4305e4124d9a5f4910452cd7369c54cd3c06277298415326141a468abdbc30c0cd209198a64105f00c2d852e70dfe79d4c3cb98f8cd2eef56b638518b52091e6460fdc32f11b00bcbd6bac801babcee538f6a28f7c69372c1e8c56be9a5e8dc3bc6eab1")
+     << Q("164b0fcf24288c451c8d972e01d23f0cb540ad16b426bd9f68cfe7f64550dcf6528fc83235e8037783b6d7ce09fbf0cdd750be78b6cdac36bd4435fb1f29027971eb0868ced7f77965bdae3fbec6ae4f011ce47bf224814268715e04c3a539a1770be7d67ff7ce4309ea413ae405ba56d798e6a0a163a3b47fe84f32fa6b5d55ff3c34db910f95b7bd0dd6aafc8c86ccf19ab06e3abfa51a927e6846dc2512c1fc7d7ce0c20434e8b7c35cb439913e80ad4cbecbbdafb81fdf01144e64e0dab2");
+// Bad:
+    QTest::newRow("Big div4") << Q("325d9d61a05d4305d9434f4a3c62d433949ae6209d4926c3f5bd2db49ef47187094c1a6970ca7e6bd2a73c5534936a8de061e8d4649f4f3235e005b80411640114a88bc491b9fc4ed520190fba035faaba6c356e38a31b5653f445975836cb0b6c975a351a28e4262ce3ce3a0b8df68368ae26a7b7e976a3310fc8f1f9031eb0f669a20288280bda5a580d98089dc1a47fe6b7595fb101a3616b6f4654b31fb6bfdf56deeecb1b896bc8fc51a16bf3fdeb3d814b505ba34c4118ad822a51abe1de3045b7a748e1042c462be695a9f9f2a07a7e89431922bbb9fc96359861c5cd134f451218b65dc60d7233e55c7231d2b9c9fce837d1e43f61f7de16cfb896634ee0ed1440ecc2cd8194c7d1e1a140ac53515c51a88991c4e871ec29f866e7c215bf55b2b722919f001")
+     << Q("ffffffffffffffffc90fdaa22168c234c4c6628b80dc1cd129024e088a67cc74020bbea63b139b22514a08798e3404ddef9519b3cd3a431b302b0a6df25f14374fe1356d6d51c245e485b576625e7ec6f44c42e9a637ed6b0bff5cb6f406b7edee386bfb5a899fa5ae9f24117c4b1fe649286651ece45b3dc2007cb8a163bf0598da48361c55d39a69163fa8fd24cf5f83655d23dca3ad961c62f356208552bb9ed529077096966d670c354e4abc9804f1746c08ca237327ffffffffffffffff")
+     << Q("325d9d61a04d4305e4124d9a5f45a142d6f94d287808cbc93f7fb02c39983766fb2120ba9d14b770cac44c0842c3268ad2dce51eb8fae463f5ee3955883645db0a0f9055c7908efb30480f25505527e694596ddc476900e1f206ee9f464d178ead08e4351e65593c931")
+     << Q("81499ed7cb12976c81ff76e74579ec0cd97313e8001168f8fdd1853aeb08da3579ecb9b4f1d825aa0d25f8d31f44134c27901fec085fbf0cb5b8d6a9ffb2e2c129ecfbe287781fad742f9623dcd6fe044f28d30eded0713b9b2d7854ef9c71ef7faba77c66a9f89e46cc117b2d216a9cfca78ed57bebb8ad411583aaa52371cfc6f0a345513852573544c98a6a0cc1229aa1d7cb1641ff3f246621ca7b1bab89a20e929af04a23ea40682229a6ae9be5d2a609ff51c99984839e7d587eadb932");
 }
 
 void TestBigInt::testDivide()
@@ -357,10 +384,10 @@ void TestBigInt::testDivide()
     const QFETCH( QString, quotient);
     const QFETCH( QString, remainder);
 
-    const QBigInt anum = QBigInt(numerator,10);
-    const QBigInt aden = QBigInt(denominator,10);
-    const QBigInt quotientA = QBigInt(quotient,10);
-    const QBigInt remainderA = QBigInt(remainder,10);
+    const QBigInt anum = QBigInt::fromString(numerator,16);
+    const QBigInt aden = QBigInt::fromString(denominator,16);
+    const QBigInt quotientA = QBigInt::fromString(quotient,16);
+    const QBigInt remainderA = QBigInt::fromString(remainder,16);
 
     QPair< QBigInt, QBigInt > result = QBigInt::div(anum,aden);
 
@@ -385,9 +412,9 @@ void TestBigInt::testDivideBad()
 
 void TestBigInt::testMetaType()
 {
-    const QBigInt anum("124e51522a31413fd2412ff4123b4",16);
+    const QBigInt anum = QBigInt::fromString("124e51522a31413fd2412ff4123b4",16);
     const QBigInt zero = QBigInt::zero();
-    const QBigInt minus100 = QBigInt("-100",10);
+    const QBigInt minus100 = QBigInt::fromString("-100",10);
     const QBigInt def = QBigInt();
 
     QVariantList alist  = QVariantList()
@@ -404,9 +431,9 @@ void TestBigInt::testMetaType()
 
 void TestBigInt::testDataStream()
 {
-    QBigInt anum("124e51522a31413fd2412ff4123b4",16);
+    QBigInt anum = QBigInt::fromString("124e51522a31413fd2412ff4123b4",16);
     QBigInt zero = QBigInt::zero();
-    QBigInt minus100 = QBigInt("-100",10);
+    QBigInt minus100 = QBigInt::fromString("-100",10);
     QBigInt def = QBigInt();
 
     QByteArray buffer;

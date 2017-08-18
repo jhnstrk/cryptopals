@@ -54,7 +54,8 @@ namespace {
 
     QBigInt randomValue(const QBigInt & mx)
     {
-        return QBigInt( qossl::randomBytes(mx.highBitPosition() / CHAR_BIT + 1) ) % mx;
+        return QBigInt::fromLittleEndianBytes(
+                    qossl::randomBytes(mx.highBitPosition() / CHAR_BIT + 1) ) % mx;
     }
 }
 
@@ -93,17 +94,32 @@ void TestSet5::testChallenge33_1()
 
 void TestSet5::testChallenge33_2()
 {
-    const QBigInt p( QString(nist_p) , 16);
+    const QBigInt p( QBigInt::fromString(nist_p , 16) );
     const QBigInt g(5);
 
     // Generate "a", a random number mod p.
     QBigInt a = randomValue(p);
+    a = QBigInt::fromString(
+    "34df8dd5c40ce79bbdef742531dc0a0a585ef948c98124cb18cda27af0521c6791a222bf4a"
+    "119d44f267b00273b1e5c6eb3d382c82c87078fec0295cfcdda67255008290b5bf250ac56c"
+    "e40b3f1e30291cbe6b5bcbbd0d9b9d751330795f21ce47487dcb96b9abfd5ab56355b786ff"
+    "54368c78a36017bc92193f321655a7bc7d8e57e4a7526ee9767ad7f0f98bd2e7e92e7ceeaa"
+    "ca12d55e0223ccf49f7db9ae27a538aed133d0bf81a0bc4e0e93a07e96f8fca896955e9533"
+    "d6b504a77f4dc7",16);
 
     // Now generate "A", which is "g" raised to the "a" power mod p --- A = (g**a) % p.
     QBigInt A = g.modExp(a,p);
 
     // Do the same for "b" and "B".
     QBigInt b = randomValue(p);
+    b = QBigInt::fromString(
+    "a2380c33e714ae0c9dce5b279b21f5e290f54eb6c84ad11a3cf50fac58ec2000cdf367d11a"
+    "01965465ba89149711c4848123ea23353d10cf2840a26df2c83b058ff2976f066a0ad45b5b"
+    "aaeab7781381d9306705bbc97caff7f15dc75d812ce1f9f44d136aa59291236de026592ac2"
+    "22939f37713391099348015c32b32f0049d82d4796a9c0e33340a348a110ea03620773eb8c"
+    "0da1a9033e58f582004625426a5d384dc579b573df8a3613e524299e23252b17d0f7734866"
+    "f7784832e68bf2",16);
+
     QBigInt B = g.modExp(b,p);
 
     // "A" and "B" are public keys. Generate a session key with them;
@@ -139,7 +155,7 @@ namespace {
     class Alice : public IAlice{
     public:
         Alice() :
-            m_p( QString(nist_p) , 16),
+            m_p( QBigInt::fromString(QString(nist_p) , 16)),
             m_g(5)
         {
         }

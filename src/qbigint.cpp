@@ -14,15 +14,35 @@ namespace {
 
   QBigIntMetaTypeInitializer QBigIntMetaTypeInitializer::m_obj;
 
-  QByteArray Hx( const quint64 n ) { return QByteArray::number(n,16); }
-
   QByteArray dump(const QBigInt::DataType &v) {
       QByteArray buffer;
+      buffer.reserve(v.size() * (sizeof(QBigInt::WordType) * 2 + 2) + 2 );
+      buffer.append('[');
       for (int i=0; i<v.size(); ++i) {
           if (i > 0) {
               buffer += ", ";
           }
           buffer += QByteArray::number(v.at(i),16);
+      }
+      buffer.append(']');
+      return buffer;
+  }
+
+  QByteArray toHex(const QBigInt::DataType &v) {
+      if (v.isEmpty()) {
+          return "0x0";
+      }
+
+      QByteArray buffer;
+      buffer.reserve(v.size() * (sizeof(QBigInt::WordType) * 2 + 2) + 2 );
+      buffer.append("0x");
+      buffer.append(QByteArray::number(v.back(),16));
+      for (int i= v.size()-2; i>=0; --i) {
+          QByteArray n = QByteArray::number(v.at(i),16);
+          if (n.size() < int(sizeof(QBigInt::WordType)) * 2) {
+              n.prepend(QByteArray(int(sizeof(QBigInt::WordType)) * 2 - n.size(),'0'));
+          }
+          buffer.append(n);
       }
       return buffer;
   }
@@ -411,7 +431,6 @@ namespace {
 
             tmp >>= WordBits;
             DWordType u_ix = u.at(i + u0);
-
             if (u_ix < mv_i) {
                 ++tmp;  // borrow
                 u_ix += (DWordType(1) << WordBits);
@@ -464,22 +483,29 @@ namespace {
         const int n = den.size();
         const int m = num.size() - n;
         //D2
+
+        const QBigInt::WordType v_1 = v.at(v1);
+        const QBigInt::WordType v_2 = v.at(v1-1);
+
         for (int j = 0; j<=m; ++j) {
 
             DWordType qHat = 0;
 
             // D3
-            if (u.at(u0 - j) == v.back()) {
+            DWordType dwNext = (DWordType(u.at(u0 - j)) << WordBits) + DWordType(u.at(u0 - j - 1));
+            if (u.at(u0 - j) == v_1) {
                 qHat = Mask32;  // b - 1
             } else {
-                qHat = ((DWordType(u.at(u0 - j)) << WordBits) + DWordType(u.at(u0 - j - 1))) /
-                        DWordType(v.back());
+                qHat = dwNext / DWordType(v_1);
             }
 
             for (int iLoop = 0; iLoop <2; ++iLoop) {
-                if ( (v.at(v1 - 1) * qHat) >
-                      ( ( ( (DWordType(u.at(u0 - j)) << WordBits) + u.at(u0 - j - 1) - qHat*v.at(v1) )
-                     << WordBits)  + u.at(u0 - 2)) )
+                DWordType rhs =  (dwNext - qHat*v_1 );
+                if ( (rhs >> WordBits) != 0) {
+                    break;  // If it overflows, the test cannot be true.
+                }
+                if ( (v_2 * qHat) >
+                      ( ( (rhs << WordBits)  + u.at(u0 -j - 2)) ) )
                 {
                     --qHat;
                 } else {
@@ -492,6 +518,7 @@ namespace {
 
             // D5: Test carry
             if(carry != 0) {
+                qDebug() << "CARRY";
                 // D6: u += (v << N)
                 --qHat;
                 const QBigInt::WordType carry2 = addBack(j,u,v);
@@ -530,6 +557,8 @@ namespace {
         }
 
         ReturnType t =  unsigned_divide_k(num,den);
+
+        // qDebug() << toHex(num) << toHex(den) << toHex(t.first) << toHex(t.second);
         return t;
     }
 }
@@ -540,14 +569,14 @@ QBigInt::QBigInt() : m_sign(false), m_flags(IsNull)
 
 }
 
-QBigInt::QBigInt(const QString &s, int base) : m_sign(false), m_flags(IsNull)
+QBigInt QBigInt::fromString(const QString &s, int base)
 {
+    QBigInt tmp(QBigInt::zero());
     if (s.isEmpty()) {
-        return;
+        return tmp;
     }
 
     const int sz = s.size();
-    QBigInt tmp(QBigInt::zero());
     bool negative = false;
     int i = 0;
     if (s.at(i) == QChar('-')) {
@@ -567,15 +596,17 @@ QBigInt::QBigInt(const QString &s, int base) : m_sign(false), m_flags(IsNull)
         }
     }
 
-    this->operator =(tmp);
-    if (negative && this->isValid()) {
-        m_sign = true;
+    if (negative && tmp.isValid()) {
+        tmp.negate();
     }
+    return tmp;
 }
 
-QBigInt::QBigInt(const QByteArray &bytes):    m_sign(false), m_flags(0)
+QBigInt QBigInt::fromLittleEndianBytes(const QByteArray &bytes)
 {
-    setBytes(m_d, reinterpret_cast<const unsigned char *>(bytes.constData()), bytes.size());
+    QBigInt ret = QBigInt::zero();
+    setBytes(ret.m_d, reinterpret_cast<const unsigned char *>(bytes.constData()), bytes.size());
+    return ret;
 }
 
 QBigInt::QBigInt(WordType value) :    m_sign(false), m_flags(0)
@@ -1201,7 +1232,7 @@ QDataStream &operator>>(QDataStream &in, QBigInt &obj)
     flags &= (~(unsigned int)SignFlag); // Clear the sign flag.
     if (flags == 0) {
         in >> bytes;
-        obj = QBigInt(bytes);
+        obj = QBigInt::fromLittleEndianBytes(bytes);
     }
     if (sign) {
         obj.negate();

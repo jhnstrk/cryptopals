@@ -15,14 +15,15 @@ public:
     typedef QVector<WordType> DataType;
 
     QBigInt();
-    QBigInt(const QString & s, int base);
-    explicit QBigInt(const QByteArray & bytes);
     explicit QBigInt(quint32 value);
     explicit QBigInt(qint32 value);
     explicit QBigInt(quint64 value);
     explicit QBigInt(qint64 value);
     QBigInt(const QBigInt & other);
     ~QBigInt();
+
+    static QBigInt fromString(const QString & s, int base);
+    static QBigInt fromLittleEndianBytes(const QByteArray & bytes);
 
     QBigInt & operator=(const QBigInt & other);
 
