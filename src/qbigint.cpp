@@ -437,9 +437,7 @@ namespace {
             }
             u[i + u0] = u_ix - mv_i;
         }
-        if (tmp != 0) {
-            qWarning() << "Underflow" << tmp;
-        }
+
         return tmp;
     }
 
@@ -518,7 +516,7 @@ namespace {
 
             // D5: Test carry
             if(carry != 0) {
-                qDebug() << "CARRY";
+
                 // D6: u += (v << N)
                 --qHat;
                 const QBigInt::WordType carry2 = addBack(j,u,v);
@@ -528,7 +526,7 @@ namespace {
             }
             q.push_front(qHat);
 
-            // D7...
+            // D7...Loop
         }
 
         // D8: Unnormalize remainder
@@ -556,9 +554,8 @@ namespace {
             return ReturnType(q, r);
         }
 
-        ReturnType t =  unsigned_divide_k(num,den);
+        ReturnType t =  unsigned_divide_1(num,den);
 
-        // qDebug() << toHex(num) << toHex(den) << toHex(t.first) << toHex(t.second);
         return t;
     }
 }
