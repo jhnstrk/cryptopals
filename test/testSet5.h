@@ -16,4 +16,11 @@ private slots:
     // Diffie Hellman MITM
     void testChallenge34_1();
     void testChallenge34_2();
+
+    // Diffie Hellman parameter tampering
+    void testChallenge35();
+    void testChallenge35_g_1(); // g=1
+    void testChallenge35_g_p(); // g=p
+    void testChallenge35_g_pm1(); // g=p-1
+
 };

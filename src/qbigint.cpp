@@ -64,6 +64,8 @@ namespace {
           return value.unicode() - QChar('0').unicode();
       } else if (value >= QChar('a') && (value <= QChar('z'))) {
           return value.unicode() - QChar('a').unicode() + 10;
+      } else if (value >= QChar('A') && (value <= QChar('Z'))) {
+          return value.unicode() - QChar('A').unicode() + 10;
       } else {
           return -1;
       }

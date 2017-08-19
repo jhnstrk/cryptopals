@@ -138,7 +138,7 @@ void TestSet5::testChallenge33_2()
 }
 
 
-namespace {
+namespace Challenge34 {
 
     class IAlice {
     public:
@@ -247,6 +247,7 @@ namespace {
 }
 void TestSet5::testChallenge34_1()
 {
+    using namespace Challenge34;
     Alice a;
     Bob b;
     a.sendDHParam(b);
@@ -255,7 +256,7 @@ void TestSet5::testChallenge34_1()
     b.sendEncryptedMessage(a);
 }
 
-namespace {
+namespace Challenge34 {
     class Mallory : public IAlice, public IBob {
     public:
         Mallory(Alice & a, Bob & b)
@@ -309,6 +310,7 @@ namespace {
 
 void TestSet5::testChallenge34_2()
 {
+    using namespace Challenge34;
     Alice a;
     Bob b;
     Mallory m(a,b);
@@ -321,4 +323,373 @@ void TestSet5::testChallenge34_2()
     // By setting the public key to 'p' the session key will become the sha1-hash of zero;
     // since p % p == 0, raising p to any power x (mod p) is always zero.
 }
+
+
+namespace Challenge35 {
+
+    class IAlice {
+    public:
+        virtual void receiveAck(const int ack) = 0;
+        virtual void receivePeerPubKey(const QBigInt & B) = 0;
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) = 0;
+    };
+
+    class IBob {
+    public:
+        virtual void receiveDHParam(const QBigInt & p, const QBigInt & g) =0;
+        virtual void receivePeerPubKey(const QBigInt & A) = 0;
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) = 0;
+    };
+
+    class Alice : public IAlice{
+    public:
+        Alice() :
+            m_p( QBigInt::fromString(QString(nist_p) , 16)),
+            m_g(5)
+        {
+        }
+
+        virtual ~Alice() {}
+        void sendDHParam(IBob & b) Q_DECL_OVERRIDE
+        {
+            m_a = randomValue(m_p);  // Private key
+            m_A = m_g.modExp(m_a,m_p);  // Public key
+            b.receiveDHParam(m_p,m_g);
+        }
+
+        virtual void receiveAck(int) Q_DECL_OVERRIDE { }
+
+        void sendPublicKey(IBob & b)
+        {
+            b.receivePeerPubKey(m_A);
+        }
+
+        virtual void receivePeerPubKey(const QBigInt & B) Q_DECL_OVERRIDE
+        {
+            m_B = B;
+            m_s = qossl::Sha1::hash(m_B.modExp(m_a,m_p).toLittleEndianBytes());
+            m_s = m_s.left(qossl::AesBlockSize);
+            qDebug() << "Alice key" << m_s << m_B;
+        }
+
+        void sendEncryptedMessage(IBob & b)
+        {
+            const QByteArray message = "Implement a MITM key-fixing attack on Diffie-Hellman with parameter injection";
+            const QByteArray iv = qossl::randomBytes(qossl::AesBlockSize);
+            const QByteArray enc = qossl::aesCbcEncrypt(qossl::pkcs7Pad(message,qossl::AesBlockSize),m_s,iv);
+            b.receiveEncryptedMessage(iv,enc);
+        }
+
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) Q_DECL_OVERRIDE
+        {
+            const QByteArray message = qossl::pkcs7Unpad(qossl::aesCbcDecrypt(enc,m_s,iv));
+            qDebug() << "Alice got message" << message;
+        }
+
+    private:
+        QBigInt m_B;
+        QBigInt m_p, m_g, m_a, m_A;
+        QByteArray m_s; // Session key
+    };
+
+    class Bob : public IBob{
+    public:
+        Bob() {}
+        virtual ~Bob() {}
+
+        virtual void receiveDHParam(const QBigInt & p, const QBigInt & g) Q_DECL_OVERRIDE
+        {
+            m_p = p;
+            m_g = g;
+
+            m_b = randomValue(m_p);  // Private key
+            m_B = m_g.modExp(m_b,m_p);  // Public key
+        }
+
+        virtual void receivePeerPubKey(const QBigInt & A) Q_DECL_OVERRIDE
+        {
+            m_A = A;
+            m_s = qossl::Sha1::hash(m_A.modExp(m_b,m_p).toLittleEndianBytes());
+            m_s = m_s.left(qossl::AesBlockSize);
+            qDebug () << "Bob key" << m_s << m_A;
+        }
+
+        void sendAck(IAlice & a)
+        {
+            a.receiveAck(1);
+        }
+
+        void sendPublicKey(IAlice & a)
+        {
+            a.receivePeerPubKey(m_B);
+        }
+
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) Q_DECL_OVERRIDE
+        {
+            const QByteArray message = qossl::pkcs7Unpad(qossl::aesCbcDecrypt(enc,m_s,iv));
+            qDebug() << "Bob got message" << message;
+            m_message = message;
+        }
+
+        void sendEncryptedMessage(IAlice & a)
+        {
+            const QByteArray iv = qossl::randomBytes(qossl::AesBlockSize);
+            const QByteArray enc = qossl::aesCbcEncrypt(qossl::pkcs7Pad(m_message,qossl::AesBlockSize),m_s,iv);
+            a.receiveEncryptedMessage(iv,enc);
+        }
+
+    private:
+        QBigInt m_A;
+        QBigInt m_p, m_g, m_b, m_B;
+        QByteArray m_s; // Session key
+        QByteArray m_message;
+    };
+
+    // Base class is just pass-through.
+    class Mallory : public IAlice, public IBob {
+    public:
+        Mallory(Alice & a, Bob & b)
+            : m_alice(a), m_bob(b),m_count(0)
+        {
+        }
+
+        virtual void receiveDHParam(const QBigInt & p, const QBigInt & g) Q_DECL_OVERRIDE
+        {
+            // Take a copy.
+            m_p = p;
+            m_g = g;
+
+            // Mess with parameters.
+            m_bob.receiveDHParam(p,g);
+        }
+
+        virtual void receiveAck(int ack) Q_DECL_OVERRIDE
+        {
+            m_alice.receiveAck(ack);
+        }
+
+        virtual void receivePeerPubKey(const QBigInt & pk) Q_DECL_OVERRIDE
+        {
+            if (m_count & 1) {
+                m_alice.receivePeerPubKey(pk);
+                m_B = pk;
+            } else {
+                m_bob.receivePeerPubKey(pk);
+                m_A = pk;
+            }
+
+            ++m_count;
+        }
+
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) Q_DECL_OVERRIDE
+        {
+            if (m_count & 1) {
+                m_alice.receiveEncryptedMessage(iv,enc);
+            } else {
+                m_bob.receiveEncryptedMessage(iv,enc);
+            }
+            if (!m_s.isNull()) {
+                const QByteArray message = qossl::pkcs7Unpad(qossl::aesCbcDecrypt(enc,m_s,iv));
+                qDebug() << "Mallory read message" << message;
+            }
+            ++m_count;
+        }
+
+    protected:
+        Alice & m_alice;
+        Bob & m_bob;
+
+        QBigInt m_p;
+        QBigInt m_g;
+        QBigInt m_A, m_B;
+        unsigned int m_count;
+        QByteArray m_s;
+    };
+
+
+    // Fix g=1
+    // This means that the public key is both 1**x => 1.
+    // For this to work, we fake the public key of Alice too, setting it to one.
+    class MalloryG1 : public Mallory {
+    public:
+        MalloryG1(Alice & a, Bob & b) : Mallory(a,b)
+        {
+            m_s = qossl::Sha1::hash(QBigInt::one().toLittleEndianBytes());
+            m_s = m_s.left(qossl::AesBlockSize);
+        }
+
+        virtual void receiveDHParam(const QBigInt & p, const QBigInt & g) Q_DECL_OVERRIDE
+        {
+            // Take a copy.
+            m_p = p;
+            m_g = g;
+
+            // Mess with parameters.
+            m_bob.receiveDHParam(p,QBigInt::one());
+        }
+
+        virtual void receivePeerPubKey(const QBigInt & pk) Q_DECL_OVERRIDE
+        {
+            if (m_count & 1) {
+                m_alice.receivePeerPubKey(pk);
+                m_B = pk;
+            } else {
+                m_bob.receivePeerPubKey(QBigInt::one());
+                m_A = pk;
+            }
+
+            ++m_count;
+        }
+    };
+
+    // Fix g=p
+    // This means that the public keys are always zero since (x ** N mod x) == 0,
+    // and the session key will be hash-of-zero.
+    // For this to work, we fake the public key of Alice too, setting it to zero.
+    class MalloryGP : public Mallory {
+    public:
+        MalloryGP(Alice & a, Bob & b) : Mallory(a,b)
+        {
+            m_s = qossl::Sha1::hash(QBigInt::zero().toLittleEndianBytes());
+            m_s = m_s.left(qossl::AesBlockSize);
+        }
+
+        virtual void receiveDHParam(const QBigInt & p, const QBigInt & g) Q_DECL_OVERRIDE
+        {
+            // Take a copy.
+            m_p = p;
+            m_g = g;
+
+            // Mess with parameters.
+            m_bob.receiveDHParam(p,p);  // g = p
+        }
+
+        virtual void receivePeerPubKey(const QBigInt & pk) Q_DECL_OVERRIDE
+        {
+            if (m_count & 1) {
+                m_alice.receivePeerPubKey(pk);
+                m_B = pk;
+            } else {
+                m_bob.receivePeerPubKey(QBigInt::zero());
+                m_A = pk;
+            }
+
+            ++m_count;
+        }
+    };
+
+    // Fix g=p-1
+    // This means that the public keys are either 1 or p-1;
+    // pub key = g ** priv key % p;
+    //    (p-1) ** X == (p-1)(p-1)(...) %p
+    //               == (p**2 -2p +1)(...) %p
+    //               == 1.(...) %p
+    // Whether the public key is 1 or p-1 depends on the last bit of the private key.
+    class MalloryGPm1 : public Mallory {
+    public:
+        MalloryGPm1(Alice & a, Bob & b) : Mallory(a,b)
+        {
+        }
+
+        virtual void receiveDHParam(const QBigInt & p, const QBigInt & g) Q_DECL_OVERRIDE
+        {
+            // Take a copy.
+            m_p = p;
+            m_g = g;
+
+            // Mess with parameters.
+            m_bob.receiveDHParam(p,(p - 1));  // g = p - 1
+        }
+
+        virtual void receivePeerPubKey(const QBigInt & pk) Q_DECL_OVERRIDE
+        {
+            if (m_count & 1) {
+                m_alice.receivePeerPubKey(QBigInt::one());
+                m_B = pk;
+            } else {
+                m_bob.receivePeerPubKey(QBigInt::one());
+                m_A = pk;
+            }
+
+            ++m_count;
+        }
+
+        virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) Q_DECL_OVERRIDE
+        {
+            m_s = qossl::Sha1::hash(QBigInt::one().toLittleEndianBytes());
+            m_s = m_s.left(qossl::AesBlockSize);
+
+            if (m_count & 1) {
+                m_alice.receiveEncryptedMessage(iv,enc);
+            } else {
+                m_bob.receiveEncryptedMessage(iv,enc);
+            }
+            if (!m_s.isNull()) {
+                const QByteArray message = qossl::pkcs7Unpad(qossl::aesCbcDecrypt(enc,m_s,iv));
+                qDebug() << "Mallory read message" << message;
+            }
+            ++m_count;
+        }
+    };
+}
+
+void TestSet5::testChallenge35()
+{
+    using namespace Challenge35;
+
+    Alice a;
+    Bob b;
+    a.sendDHParam(b);
+    b.sendAck(a);
+    a.sendPublicKey(b);
+    b.sendPublicKey(a);
+    a.sendEncryptedMessage(b);
+    b.sendEncryptedMessage(a);
+}
+
+void TestSet5::testChallenge35_g_1()
+{
+    using namespace Challenge35;
+
+    Alice a;
+    Bob b;
+    MalloryG1 m(a,b);
+    a.sendDHParam(m);
+    b.sendAck(m);
+    a.sendPublicKey(m);
+    b.sendPublicKey(m);
+    a.sendEncryptedMessage(m);
+    b.sendEncryptedMessage(m);
+}
+
+void TestSet5::testChallenge35_g_p()
+{
+    using namespace Challenge35;
+
+    Alice a;
+    Bob b;
+    MalloryGP m(a,b);
+    a.sendDHParam(m);
+    b.sendAck(m);
+    a.sendPublicKey(m);
+    b.sendPublicKey(m);
+    a.sendEncryptedMessage(m);
+    b.sendEncryptedMessage(m);
+}
+
+void TestSet5::testChallenge35_g_pm1()
+{
+    using namespace Challenge35;
+
+    Alice a;
+    Bob b;
+    MalloryGPm1 m(a,b);
+    a.sendDHParam(m);
+    b.sendAck(m);
+    a.sendPublicKey(m);
+    b.sendPublicKey(m);
+    a.sendEncryptedMessage(m);
+    b.sendEncryptedMessage(m);
+}
+
 
