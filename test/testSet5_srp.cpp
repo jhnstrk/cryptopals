@@ -240,3 +240,145 @@ void TestSet5_Srp::testChallenge37()
     QVERIFY(client2.verify(server, "notThere@iambadass.com", "fake"));
 }
 
+
+namespace {
+class SimpleSrpServer
+{
+public:
+    SimpleSrpServer() :
+        m_g(2),
+        m_N(QBigInt::fromString(nist_p,16)),
+        m_privKey(randomValue(m_N))
+    {
+        this->addUser("joeBlogs@example.com","secret-password");
+    }
+
+    virtual ~SimpleSrpServer() {}
+
+    struct HandshakeRetType {
+        QByteArray salt;
+        QBigInt B;
+        QBigInt u;
+    };
+
+    virtual HandshakeRetType handshake(const QString & user, const QBigInt & A){
+        const QByteArray userN = user.normalized(QString::NormalizationForm_C).toUtf8();
+        const UserDetail detail = this->m_users.value(userN, UserDetail());
+
+        HandshakeRetType ret;
+        ret.salt = detail.salt;
+        // salt, B = g**b % n, u = 128 bit random number
+        ret.B = QBigInt(m_g).modExp(m_privKey,m_N);
+        ret.u = QBigInt::fromLittleEndianBytes(qossl::randomBytes(128/8));
+
+        const QBigInt v = QBigInt::fromLittleEndianBytes(detail.v);
+        // S = (A * v ** u)**b % n
+        // K = SHA256(S)
+        const QBigInt S = (A * v.modExp(ret.u,m_N)).modExp(m_privKey,m_N);
+        const QByteArray K = sha256Hash(S.toLittleEndianBytes());
+        m_clientHash = qossl::hmacSha256(K,ret.salt);
+
+        return ret;
+    }
+
+    bool verify(const QByteArray & clientHash) const {
+        return clientHash == m_clientHash;
+    }
+
+
+private:
+    void addUser(const QString & user, const QString & pass){
+        const QByteArray userN = user.normalized(QString::NormalizationForm_C).toUtf8();
+        const QByteArray passN = pass.normalized(QString::NormalizationForm_C).toUtf8();
+
+        //x = SHA256(salt|password)
+        const QByteArray salt = qossl::randomBytes(16);
+        const QBigInt x = hashAndToInt( salt + passN );
+        //v = g**x % n
+        const QBigInt v = QBigInt(m_g).modExp(x,m_N);
+        UserDetail detail;
+        detail.salt = salt;
+        detail.v = v.toLittleEndianBytes();
+        m_users[userN] = detail;
+    }
+private:
+    struct UserDetail {
+        QByteArray salt;
+        QByteArray v;
+    };
+
+    QHash< QByteArray , UserDetail > m_users;
+    const unsigned int m_g;
+    const QBigInt m_N;
+    const QBigInt m_privKey;
+
+    QByteArray m_clientHash;
+};
+
+class SimpleSrpClient {
+public:
+    SimpleSrpClient() :
+        m_g(2), m_k(3),
+        m_N(QBigInt::fromString(nist_p,16)),
+        m_privKey(randomValue(m_N))
+    {
+    }
+
+    virtual ~SimpleSrpClient() {}
+
+    virtual bool verify(SimpleSrpServer & server, const QString & user, const QString & pass)
+    {
+        const QBigInt A = QBigInt(m_g).modExp(m_privKey, m_N);
+        //I, A = g**a % n
+        SimpleSrpServer::HandshakeRetType resp = server.handshake(user, A);
+
+        const QByteArray userN = user.normalized(QString::NormalizationForm_C).toUtf8();
+        const QByteArray passN = pass.normalized(QString::NormalizationForm_C).toUtf8();
+        // x = SHA256(salt|password)
+        const QBigInt x = hashAndToInt(resp.salt + passN);
+
+        // S = B**(a + ux) % n
+        const QBigInt S = resp.B.modExp(m_privKey + resp.u * x, m_N);
+
+        //  K = SHA256(S)
+        const QByteArray K = sha256Hash(S.toLittleEndianBytes());
+
+        const QByteArray hmac = qossl::hmacSha256(K,resp.salt);
+
+        qDebug() << "Verifying with mac" << hmac.toHex().left(16) + "...";
+        return server.verify(hmac);
+    }
+
+protected:
+    const unsigned int m_g, m_k;
+    const QBigInt m_N;
+    const QBigInt m_privKey;
+};
+}
+void TestSet5_Srp::testChallenge38()
+{
+    SimpleSrpServer server;
+
+    SimpleSrpClient client;
+
+    // Good user
+    QVERIFY(client.verify(server, "joeBlogs@example.com","secret-password"));
+
+    // Unknown user
+    QVERIFY(!client.verify(server, "notThere@iambadass.com", "fake"));
+
+    // Bad password
+    QVERIFY(!client.verify(server, "joeBlogs@example.com","not the password"));
+
+    // Bad password (empty)
+    QVERIFY(!client.verify(server, "joeBlogs@example.com", QString()));
+
+    // Bad user (empty)
+    QVERIFY(!client.verify(server, QString(), "bad"));
+
+    // Bad user and pass (empty)
+    QVERIFY(!client.verify(server, QString(), QString()));
+
+    // Good user (again, just to make sure the failed attempts didn't corrupt).
+    QVERIFY(client.verify(server, "joeBlogs@example.com","secret-password"));
+}

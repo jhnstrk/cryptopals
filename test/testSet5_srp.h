@@ -14,4 +14,8 @@ private slots:
 
     // Break SRP
     void testChallenge37();
+
+    // Break simple SRP
+    void testChallenge38();
+
 };
