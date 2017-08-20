@@ -76,6 +76,9 @@ namespace qossl {
 
     bool aesCtrEdit(QByteArray & cipherText, const QByteArray & key, quint64 nonce, int offset, const QByteArray & newText);
     
+    // Prime numbers
+    QByteArray primeGen(int bits);
+
     //! Generate len cryptographic random bytes.
     QByteArray randomBytes(int len);
     unsigned char   randomUChar();

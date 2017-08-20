@@ -26,14 +26,14 @@ namespace {
 
     QBigInt randomValue(const QBigInt & mx)
     {
-        return QBigInt::fromLittleEndianBytes(
+        return QBigInt::fromBigEndianBytes(
                     qossl::randomBytes(mx.highBitPosition() / CHAR_BIT + 1) ) % mx;
     }
 
     QBigInt hashAndToInt(const QByteArray & data)
     {
         const QByteArray xH = QCryptographicHash::hash(data,QCryptographicHash::Sha256);
-        return QBigInt::fromLittleEndianBytes(xH);
+        return QBigInt::fromBigEndianBytes(xH);
     }
 
     QByteArray sha256Hash(const QByteArray & data) {
@@ -65,18 +65,18 @@ namespace {
             const UserDetail detail = this->m_users.value(userN, UserDetail());
 
             const QByteArray salt = detail.salt;
-            const QBigInt v = QBigInt::fromLittleEndianBytes(detail.v);
+            const QBigInt v = QBigInt::fromBigEndianBytes(detail.v);
             // B=kv + g**b % N
             const QBigInt B = QBigInt(m_k) * v
                     + QBigInt(m_g).modExp(m_privKey,m_N);
 
             // uH = SHA256(A|B), u = integer of uH
-            const QBigInt u = hashAndToInt(A.toLittleEndianBytes() + B.toLittleEndianBytes());
+            const QBigInt u = hashAndToInt(A.toBigEndianBytes() + B.toBigEndianBytes());
 
             // S = (A * v**u) ** b % N
             const QBigInt S = (A * v.modExp(u,m_N)).modExp(m_privKey,m_N);
 
-            const QByteArray K = sha256Hash(S.toLittleEndianBytes());
+            const QByteArray K = sha256Hash(S.toBigEndianBytes());
             m_clientHash = qossl::hmacSha256(K,salt);
 
             return HandshakeRetType(detail.salt, B);
@@ -98,7 +98,7 @@ namespace {
             const QBigInt v = QBigInt(m_g).modExp(x,m_N);
             UserDetail detail;
             detail.salt = salt;
-            detail.v = v.toLittleEndianBytes();
+            detail.v = v.toBigEndianBytes();
             m_users[userN] = detail;
         }
     private:
@@ -139,10 +139,10 @@ namespace {
 
             const QBigInt x = hashAndToInt(salt + passN);
 
-            const QBigInt u = hashAndToInt(A.toLittleEndianBytes() + B.toLittleEndianBytes());
+            const QBigInt u = hashAndToInt(A.toBigEndianBytes() + B.toBigEndianBytes());
 
             const QBigInt S = this->getS(B,u,x);
-            const QByteArray K = sha256Hash(S.toLittleEndianBytes());
+            const QByteArray K = sha256Hash(S.toBigEndianBytes());
 
             const QByteArray hmac = qossl::hmacSha256(K,salt);
 
@@ -278,13 +278,13 @@ public:
         ret.salt = detail.salt;
         // salt, B = g**b % n, u = 128 bit random number
         ret.B = QBigInt(m_g).modExp(m_privKey,m_N);
-        ret.u = QBigInt::fromLittleEndianBytes(qossl::randomBytes(128/8));
+        ret.u = QBigInt::fromBigEndianBytes(qossl::randomBytes(128/8));
 
-        const QBigInt v = QBigInt::fromLittleEndianBytes(detail.v);
+        const QBigInt v = QBigInt::fromBigEndianBytes(detail.v);
         // S = (A * v ** u)**b % n
         // K = SHA256(S)
         const QBigInt S = (A * v.modExp(ret.u,m_N)).modExp(m_privKey,m_N);
-        const QByteArray K = sha256Hash(S.toLittleEndianBytes());
+        const QByteArray K = sha256Hash(S.toBigEndianBytes());
         m_clientHash = qossl::hmacSha256(K,ret.salt);
 
         return ret;
@@ -307,7 +307,7 @@ private:
         const QBigInt v = QBigInt(m_g).modExp(x,m_N);
         UserDetail detail;
         detail.salt = salt;
-        detail.v = v.toLittleEndianBytes();
+        detail.v = v.toBigEndianBytes();
         m_users[userN] = detail;
     }
 private:
@@ -349,7 +349,7 @@ public:
         const QBigInt S = resp.B.modExp(m_privKey + resp.u * x, m_N);
 
         //  K = SHA256(S)
-        const QByteArray K = sha256Hash(S.toLittleEndianBytes());
+        const QByteArray K = sha256Hash(S.toBigEndianBytes());
 
         const QByteArray hmac = qossl::hmacSha256(K,resp.salt);
 
@@ -405,7 +405,7 @@ public:
             const QBigInt S = ( m_A * QBigInt(m_g).modExp(x, m_N)) % m_N;
 
             //  K = SHA256(S)
-            const QByteArray K = sha256Hash(S.toLittleEndianBytes());
+            const QByteArray K = sha256Hash(S.toBigEndianBytes());
 
             const QByteArray hmac = qossl::hmacSha256(K,m_fixedSalt);
 

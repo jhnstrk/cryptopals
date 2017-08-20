@@ -3,6 +3,7 @@
 #include <openssl/aes.h>
 #include <openssl/bio.h>
 #include <openssl/rand.h>
+#include <openssl/bn.h>
 
 #include <QByteArray>
 #include <QUrlQuery>
@@ -604,6 +605,55 @@ double findBestXorChar(const QByteArray &cipherText, QByteArray &bestPlain, int 
     }
     bestCipherChar = cipherChar;
     return maxScore;
+}
+
+namespace {
+    class BigNumDeleter {
+    public:
+        static void cleanup(BIGNUM *p)
+        {
+            if (p) {
+                BN_free(p);
+            }
+        }
+    };
+}
+
+QByteArray primeGen(int bits)
+{
+    if (bits <= 0) {
+        qDebug() << "Number of bits requested is <=0" << bits;
+        return QByteArray();
+    }
+
+    QScopedPointer< BIGNUM, BigNumDeleter > newPrime(BN_new());
+    const int safe = 0;
+    // If safe is true, it will be a safe prime (i.e. a prime p so that
+    // (p-1)/2 is also prime)
+    // If add is not NULL, the prime will fulfill the condition
+    // p % add == rem (p % add == 1 if rem == NULL) in order to suit
+    // a given generator.
+    const BIGNUM *add = NULL;
+    const BIGNUM *rem = NULL;
+
+    // Callback to show some kind of progress.
+    BN_GENCB *cb = NULL;
+    int status = BN_generate_prime_ex(newPrime.data(), bits, safe,
+                             add, rem, cb);
+    if (status == 0) {
+        qWarning() << "Prime generation failed";
+        return QByteArray();
+    }
+    int numBytes = BN_num_bytes(newPrime.data());
+
+    QByteArray ret(numBytes,Qt::Uninitialized);
+    status = BN_bn2bin(newPrime.data(), reinterpret_cast<unsigned char *>(ret.data()));
+    if (status == 0) {
+        qWarning() << "Prime generation failed - couldn't copy.";
+        return QByteArray();
+    }
+
+    return ret;
 }
 
 }   // namespace qossl

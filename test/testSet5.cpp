@@ -54,7 +54,7 @@ namespace {
 
     QBigInt randomValue(const QBigInt & mx)
     {
-        return QBigInt::fromLittleEndianBytes(
+        return QBigInt::fromBigEndianBytes(
                     qossl::randomBytes(mx.highBitPosition() / CHAR_BIT + 1) ) % mx;
     }
 }
@@ -133,7 +133,7 @@ void TestSet5::testChallenge33_2()
 
     // To turn "s" into a key, you can just hash it to create 128 bits
     // of key material (or SHA256 it to create a key for encrypting and a key for a MAC).
-    QByteArray s_key = qossl::Sha1::hash(s.toLittleEndianBytes());
+    QByteArray s_key = qossl::Sha1::hash(s.toBigEndianBytes());
     QVERIFY(!s_key.isNull());
 }
 
@@ -201,7 +201,7 @@ namespace Challenge34 {
     void Alice::receivePeerPubKey(const QBigInt &B)
     {
         m_B = B;
-        m_s = qossl::Sha1::hash(m_B.modExp(m_a,m_p).toLittleEndianBytes());
+        m_s = qossl::Sha1::hash(m_B.modExp(m_a,m_p).toBigEndianBytes());
         m_s = m_s.left(qossl::AesBlockSize);
     }
 
@@ -225,7 +225,7 @@ namespace Challenge34 {
         m_b = randomValue(m_p);  // Private key
         m_B = m_g.modExp(m_b,m_p);  // Public key
 
-        m_s = qossl::Sha1::hash(m_A.modExp(m_b,m_p).toLittleEndianBytes());
+        m_s = qossl::Sha1::hash(m_A.modExp(m_b,m_p).toBigEndianBytes());
         m_s = m_s.left(qossl::AesBlockSize);
     }
 
@@ -262,7 +262,7 @@ namespace Challenge34 {
         Mallory(Alice & a, Bob & b)
             : m_alice(a), m_bob(b),m_count(0)
         {
-            m_s = qossl::Sha1::hash(QBigInt::zero().toLittleEndianBytes());
+            m_s = qossl::Sha1::hash(QBigInt::zero().toBigEndianBytes());
             m_s = m_s.left(qossl::AesBlockSize);
         }
 
@@ -367,7 +367,7 @@ namespace Challenge35 {
         virtual void receivePeerPubKey(const QBigInt & B) Q_DECL_OVERRIDE
         {
             m_B = B;
-            m_s = qossl::Sha1::hash(m_B.modExp(m_a,m_p).toLittleEndianBytes());
+            m_s = qossl::Sha1::hash(m_B.modExp(m_a,m_p).toBigEndianBytes());
             m_s = m_s.left(qossl::AesBlockSize);
             qDebug() << "Alice key" << m_s << m_B;
         }
@@ -409,7 +409,7 @@ namespace Challenge35 {
         virtual void receivePeerPubKey(const QBigInt & A) Q_DECL_OVERRIDE
         {
             m_A = A;
-            m_s = qossl::Sha1::hash(m_A.modExp(m_b,m_p).toLittleEndianBytes());
+            m_s = qossl::Sha1::hash(m_A.modExp(m_b,m_p).toBigEndianBytes());
             m_s = m_s.left(qossl::AesBlockSize);
             qDebug () << "Bob key" << m_s << m_A;
         }
@@ -514,7 +514,7 @@ namespace Challenge35 {
     public:
         MalloryG1(Alice & a, Bob & b) : Mallory(a,b)
         {
-            m_s = qossl::Sha1::hash(QBigInt::one().toLittleEndianBytes());
+            m_s = qossl::Sha1::hash(QBigInt::one().toBigEndianBytes());
             m_s = m_s.left(qossl::AesBlockSize);
         }
 
@@ -550,7 +550,7 @@ namespace Challenge35 {
     public:
         MalloryGP(Alice & a, Bob & b) : Mallory(a,b)
         {
-            m_s = qossl::Sha1::hash(QBigInt::zero().toLittleEndianBytes());
+            m_s = qossl::Sha1::hash(QBigInt::zero().toBigEndianBytes());
             m_s = m_s.left(qossl::AesBlockSize);
         }
 
@@ -616,7 +616,7 @@ namespace Challenge35 {
 
         virtual void receiveEncryptedMessage(const QByteArray & iv, const QByteArray & enc) Q_DECL_OVERRIDE
         {
-            m_s = qossl::Sha1::hash(QBigInt::one().toLittleEndianBytes());
+            m_s = qossl::Sha1::hash(QBigInt::one().toBigEndianBytes());
             m_s = m_s.left(qossl::AesBlockSize);
 
             if (m_count & 1) {

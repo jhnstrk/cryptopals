@@ -23,12 +23,12 @@ public:
     ~QBigInt();
 
     static QBigInt fromString(const QString & s, int base);
-    static QBigInt fromLittleEndianBytes(const QByteArray & bytes);
+    static QBigInt fromBigEndianBytes(const QByteArray & bytes);
 
     QBigInt & operator=(const QBigInt & other);
 
     QString toString(int base = 10) const;
-    QByteArray toLittleEndianBytes() const;
+    QByteArray toBigEndianBytes() const;
 
     inline bool isNegative() const { return m_sign; }
     bool isZero() const;
@@ -81,6 +81,15 @@ public:
     //! this to power p, mod m
     QBigInt modExp(const QBigInt & p, const QBigInt & m) const;
 
+    //! Return value cast to integer.
+    //  @return zero if this is not valid.
+    qint64 toLongLong() const;
+    quint64 toULongLong() const;
+
+    //! return the modular multiplicative inverse under modulo m
+    // i.e. return the x for which
+    //    (a * x) mod m == 1.
+    static QBigInt invmod(const QBigInt &a, const QBigInt & m);
 private:
     explicit QBigInt(const DataType& d, bool sign);
     friend bool operator<(const QBigInt &a, const QBigInt &b);
@@ -106,6 +115,7 @@ QBigInt operator+(const QBigInt & a, const QBigInt::WordType v);
 QBigInt operator-(const QBigInt & a, const QBigInt::WordType v);
 QBigInt operator/(const QBigInt & a, const QBigInt::WordType v);
 QBigInt operator*(const QBigInt & a, const QBigInt::WordType v);
+QBigInt operator%(const QBigInt & a, const QBigInt::WordType v);
 
 
 

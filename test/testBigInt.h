@@ -25,6 +25,9 @@ private slots:
 
     void testDivideBad();
 
+    void testInvMod_data();
+    void testInvMod();
+    
     void testMetaType();
     void testDataStream();
 };

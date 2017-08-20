@@ -266,18 +266,21 @@ namespace {
 
     void setBytes(QBigInt::DataType & d, const unsigned char * const p, unsigned int n)
     {
-        unsigned int i=0;
-        for ( ;i + WordBytes -1 < n; i+=WordBytes) {
+        d.clear();
+        d.reserve((n + WordBytes - 1)/ WordBytes);
+
+        unsigned int i=n;  // i is the index AFTER the current one.
+        for ( ;i > WordBytes; i-=WordBytes) {
             QBigInt::WordType back = 0;
             for (unsigned int j=0; j<WordBytes; ++j) {
-                back |= QBigInt::WordType(p[i + j]) << (j*CHAR_BIT);
+                back |= QBigInt::WordType(p[i - 1 - j]) << (j*CHAR_BIT);
             }
             d.push_back(back);
         }
-        if (i < n) {
+        if (i > 0) {
             QBigInt::WordType back = 0;
-            for (unsigned int j=0; j<(n-i); ++j) {
-                back |= QBigInt::WordType(p[i + j]) << (j*CHAR_BIT);
+            for (unsigned int j=0; j<i; ++j) {
+                back |= QBigInt::WordType(p[i - 1 - j]) << (j*CHAR_BIT);
             }
             d.push_back(back);
         }
@@ -601,7 +604,7 @@ QBigInt QBigInt::fromString(const QString &s, int base)
     return tmp;
 }
 
-QBigInt QBigInt::fromLittleEndianBytes(const QByteArray &bytes)
+QBigInt QBigInt::fromBigEndianBytes(const QByteArray &bytes)
 {
     QBigInt ret = QBigInt::zero();
     setBytes(ret.m_d, reinterpret_cast<const unsigned char *>(bytes.constData()), bytes.size());
@@ -695,9 +698,10 @@ QString QBigInt::toString(int base) const
     return ret;
 }
 
-QByteArray QBigInt::toLittleEndianBytes() const
+QByteArray QBigInt::toBigEndianBytes() const
 {
     QByteArray ret;
+    ret.reserve(m_d.size()*WordBytes);
     for (int i=0; i<m_d.size() -1; ++i) {
         for (unsigned int j=0; j<WordBytes; ++j) {
             ret.push_back( static_cast<char>((m_d.at(i) >> (j*8)) & 0xFF) );
@@ -710,6 +714,7 @@ QByteArray QBigInt::toLittleEndianBytes() const
             ret.push_back( static_cast<char>((back >> (j*8)) & 0xFF) );
         }
     }
+    std::reverse(ret.begin(), ret.end());
     return ret;
 }
 
@@ -1192,6 +1197,64 @@ QBigInt QBigInt::modExp(const QBigInt &p, const QBigInt &m) const
     }
     return (xtmp * ytmp) % m;
 }
+qint64 QBigInt::toLongLong() const
+{
+    qint64 v = this->toULongLong();
+    if (this->isNegative()) {
+        v = -v;
+    }
+    return v;
+}
+
+quint64 QBigInt::toULongLong() const
+{
+    if (!this->isValid()) {
+        return 0;
+    }
+    quint64 v = 0;
+    for (int i=0; i<m_d.size(); ++i) {
+        if (i*WordBits >= 64) {
+            break;
+        }
+        v |= (quint64)m_d.at(i) << (i*WordBits);
+    }
+    return v;
+}
+
+//static
+QBigInt QBigInt::invmod(const QBigInt & a, const QBigInt &n)
+{
+    if (a.isZero() || !a.isValid() || n.isZero() || !n.isValid()) {
+        qWarning() << "Not invertible";
+        return QBigInt();
+    }
+
+    // The extended Euclidean Alogorithm under modulo arithmetic.
+    QBigInt t = QBigInt::zero();
+    QBigInt newt = QBigInt::one();
+    QBigInt r = n;
+    QBigInt newr = a;
+
+    while (!newr.isZero()) {
+        QPair<QBigInt, QBigInt> qr = div(r,newr);
+        QBigInt tmp = t;
+        t = newt;
+        newt = tmp - qr.first * newt;
+        r = newr;
+        newr = qr.second;
+
+        if (r.isNegative()) {
+            qWarning() << "Not invertible" << r;
+            return QBigInt();
+        }
+
+        if (t.isNegative()) {
+            t += n;
+        }
+    }
+
+    return t;
+}
 
 
 QBigInt operator+(const QBigInt &a, const QBigInt::WordType v)
@@ -1217,7 +1280,7 @@ QDataStream &operator<<(QDataStream &out, const QBigInt &obj)
     out << flags;
     if (obj.isValid()) {
         // Only write the array if object is valid.
-        out << obj.toLittleEndianBytes();
+        out << obj.toBigEndianBytes();
     }
     return out;
 }
@@ -1231,11 +1294,16 @@ QDataStream &operator>>(QDataStream &in, QBigInt &obj)
     flags &= (~(unsigned int)SignFlag); // Clear the sign flag.
     if (flags == 0) {
         in >> bytes;
-        obj = QBigInt::fromLittleEndianBytes(bytes);
+        obj = QBigInt::fromBigEndianBytes(bytes);
     }
     if (sign) {
         obj.negate();
     }
     obj.setFlags(flags);
     return in;
+}
+
+QBigInt operator%(const QBigInt &a, const QBigInt::WordType v)
+{
+    return QBigInt::div(a,QBigInt(v)).second;
 }

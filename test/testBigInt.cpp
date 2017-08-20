@@ -244,12 +244,12 @@ void TestBigInt::testConstructors()
                   QString::number(std::numeric_limits<T>::min()) );
     }
 
-    QCOMPARE( QBigInt::fromLittleEndianBytes(QByteArray::fromHex("0102030405060708091a1b1c")).toString(16),
+    QCOMPARE( QBigInt::fromBigEndianBytes(QByteArray::fromHex("1c1b1a090807060504030201")).toString(16),
               QString("1c1b1a090807060504030201"));
 
-    // Trailing zeros should be ok.
-    QVERIFY( QBigInt::fromLittleEndianBytes(QByteArray::fromHex("000000000000")).isZero() );
-    QCOMPARE( QBigInt::fromLittleEndianBytes(QByteArray::fromHex("01000000000000")).toString(),
+    // Leading zeros should be ok.
+    QVERIFY( QBigInt::fromBigEndianBytes(QByteArray::fromHex("000000000000")).isZero() );
+    QCOMPARE( QBigInt::fromBigEndianBytes(QByteArray::fromHex("00000000000001")).toString(),
               QString("1"));
 }
 
@@ -299,8 +299,8 @@ void TestBigInt::testBytes()
     const QFETCH( QString, number);
 
     const QBigInt anum = QBigInt::fromString(number,10);
-    const QByteArray bytes = anum.toLittleEndianBytes();
-    const QBigInt anum2 = QBigInt::fromLittleEndianBytes(bytes);
+    const QByteArray bytes = anum.toBigEndianBytes();
+    const QBigInt anum2 = QBigInt::fromBigEndianBytes(bytes);
 
     QCOMPARE(anum2, anum);
 }
@@ -409,6 +409,36 @@ void TestBigInt::testDivideBad()
 {
     QVERIFY( !(QBigInt::zero() / QBigInt::zero()).isValid() );
     QVERIFY( !(QBigInt::one() / QBigInt::zero()).isValid() );
+}
+
+void TestBigInt::testInvMod_data()
+{
+    QTest::addColumn<QBigInt>("v");
+    QTest::addColumn<QBigInt>("m");
+    QTest::addColumn<QBigInt>("t");
+
+    // x s.t. vx = 1 mod m
+    QTest::newRow("2,37") << QBigInt(2) << QBigInt(37) << QBigInt(19);
+    QTest::newRow("5,104") << QBigInt(5) << QBigInt(5*21 - 1) << QBigInt(21);
+    QTest::newRow("0") << QBigInt(0) << QBigInt(31) << QBigInt();
+    QTest::newRow("1") << QBigInt(1) << QBigInt(31) << QBigInt(1);
+    QTest::newRow("17,3129") << QBigInt(17) << QBigInt(3120) << QBigInt(2753);
+}
+
+void TestBigInt::testInvMod()
+{
+    const QFETCH( QBigInt, v);
+    const QFETCH( QBigInt, m);
+    const QFETCH( QBigInt, t);
+
+    const QBigInt actual = QBigInt::invmod(v,m);
+
+    if (actual.isValid()) {
+        QCOMPARE(actual,t);
+        QCOMPARE(v*actual % m , QBigInt::one());
+    } else {
+        QVERIFY(!t.isValid());
+    }
 }
 
 void TestBigInt::testMetaType()
