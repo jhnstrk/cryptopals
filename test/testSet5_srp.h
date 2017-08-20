@@ -11,4 +11,7 @@ private slots:
 
     // Secure Remote Password
     void testChallenge36();
+
+    // Break SRP
+    void testChallenge37();
 };

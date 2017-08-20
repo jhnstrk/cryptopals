@@ -35,6 +35,10 @@ namespace {
         const QByteArray xH = QCryptographicHash::hash(data,QCryptographicHash::Sha256);
         return QBigInt::fromLittleEndianBytes(xH);
     }
+
+    QByteArray sha256Hash(const QByteArray & data) {
+        return QCryptographicHash::hash(data, QCryptographicHash::Sha256);
+    }
 }
 void TestSet5_Srp::initTestCase()
 {
@@ -72,7 +76,7 @@ namespace {
             // S = (A * v**u) ** b % N
             const QBigInt S = (A * v.modExp(u,m_N)).modExp(m_privKey,m_N);
 
-            const QByteArray K = QCryptographicHash::hash(S.toLittleEndianBytes(),QCryptographicHash::Sha256);
+            const QByteArray K = sha256Hash(S.toLittleEndianBytes());
             m_clientHash = qossl::hmacSha256(K,salt);
 
             return HandshakeRetType(detail.salt, B);
@@ -120,9 +124,11 @@ namespace {
         {
         }
 
-        bool verify(SrpServer & server, const QString & user, const QString & pass)
+        virtual ~SrpClient() {}
+
+        virtual bool verify(SrpServer & server, const QString & user, const QString & pass)
         {
-            QBigInt A = QBigInt(m_g).modExp(m_privKey, m_N);
+            QBigInt A = this->getA();
             QPair<QByteArray, QBigInt> resp = server.handshake(user, A);
 
             const QByteArray userN = user.normalized(QString::NormalizationForm_C).toUtf8();
@@ -135,11 +141,8 @@ namespace {
 
             const QBigInt u = hashAndToInt(A.toLittleEndianBytes() + B.toLittleEndianBytes());
 
-            // S = (B - k * g**x)**(a + u * x) % N
-            // S = (B - k * (g**x %N))**(a + u * x) % N
-            const QBigInt S = (B - QBigInt(m_k) * QBigInt(m_g).modExp(x,m_N)).modExp(m_privKey + (u * x), m_N);
-
-            const QByteArray K = QCryptographicHash::hash(S.toLittleEndianBytes(), QCryptographicHash::Sha256);
+            const QBigInt S = this->getS(B,u,x);
+            const QByteArray K = sha256Hash(S.toLittleEndianBytes());
 
             const QByteArray hmac = qossl::hmacSha256(K,salt);
 
@@ -147,12 +150,23 @@ namespace {
             return server.verify(hmac);
         }
 
-    private:
+    protected:
+        virtual QBigInt getA() const {
+            return  QBigInt(m_g).modExp(m_privKey, m_N);
+        }
+
+        virtual QBigInt getS(const QBigInt & B, const QBigInt & u, const QBigInt & x) const {
+            // S = (B - k * g**x)**(a + u * x) % N
+            // S = (B - k * (g**x %N))**(a + u * x) % N
+            return (B - QBigInt(m_k) * QBigInt(m_g).modExp(x,m_N)).modExp(m_privKey + (u * x), m_N);
+        }
+    protected:
         const unsigned int m_g, m_k;
         const QBigInt m_N;
         const QBigInt m_privKey;
     };
 }
+
 void TestSet5_Srp::testChallenge36()
 {
     SrpServer server;
@@ -180,3 +194,49 @@ void TestSet5_Srp::testChallenge36()
     // Good user (again, just to make sure the failed attempts didn't corrupt).
     QVERIFY(client.verify(server, "joeBlogs@example.com","secret-password"));
 }
+
+
+namespace {
+class BadSrpClient: public SrpClient {
+public:
+    BadSrpClient(int multipleA) : SrpClient(), m_multipleA(multipleA) {}
+
+protected:
+    virtual QBigInt getA() const Q_DECL_OVERRIDE {
+        return m_N * QBigInt(m_multipleA);
+        // return  QBigInt(m_g).modExp(m_privKey, m_N);
+    }
+
+    virtual QBigInt getS(const QBigInt &, const QBigInt &, const QBigInt &) const Q_DECL_OVERRIDE {
+        // S = (B - k * g**x)**(a + u * x) % N
+        return QBigInt::zero();
+    }
+private:
+    unsigned int m_multipleA;
+};
+
+} // anon
+
+void TestSet5_Srp::testChallenge37()
+{
+    // Sending A as zero means that the server will always compute the S value to be zero.
+    // This is also true for any multiple of N, since A % N will be zero too.
+    SrpServer server;
+
+    BadSrpClient client(0);
+
+    // Good user
+    QVERIFY(client.verify(server, "joeBlogs@example.com","secret-password"));
+
+    // Unknown user
+    QVERIFY(client.verify(server, "notThere@iambadass.com", "fake"));
+
+    // A = N
+    BadSrpClient client1(1);
+    QVERIFY(client1.verify(server, "notThere@iambadass.com", "fake"));
+
+    // A = 2N
+    BadSrpClient client2(2);
+    QVERIFY(client2.verify(server, "notThere@iambadass.com", "fake"));
+}
+
