@@ -118,7 +118,7 @@ namespace {
     class SrpClient {
     public:
         SrpClient() :
-            m_g(2), m_k(3),
+            m_g(2),m_k(3),
             m_N(QBigInt::fromString(nist_p,16)),
             m_privKey(randomValue(m_N))
         {
@@ -161,7 +161,7 @@ namespace {
             return (B - QBigInt(m_k) * QBigInt(m_g).modExp(x,m_N)).modExp(m_privKey + (u * x), m_N);
         }
     protected:
-        const unsigned int m_g, m_k;
+        const unsigned int m_g,m_k;
         const QBigInt m_N;
         const QBigInt m_privKey;
     };
@@ -242,7 +242,22 @@ void TestSet5_Srp::testChallenge37()
 
 
 namespace {
-class SimpleSrpServer
+
+class ISimpleSrpServer {
+public:
+    virtual ~ISimpleSrpServer() {}
+
+    struct HandshakeRetType {
+        QByteArray salt;
+        QBigInt B;
+        QBigInt u;
+    };
+
+    virtual HandshakeRetType handshake(const QString & user, const QBigInt & A) = 0;
+    virtual bool verify(const QByteArray & clientHash) const = 0;
+};
+
+class SimpleSrpServer : public ISimpleSrpServer
 {
 public:
     SimpleSrpServer() :
@@ -254,12 +269,6 @@ public:
     }
 
     virtual ~SimpleSrpServer() {}
-
-    struct HandshakeRetType {
-        QByteArray salt;
-        QBigInt B;
-        QBigInt u;
-    };
 
     virtual HandshakeRetType handshake(const QString & user, const QBigInt & A){
         const QByteArray userN = user.normalized(QString::NormalizationForm_C).toUtf8();
@@ -281,7 +290,7 @@ public:
         return ret;
     }
 
-    bool verify(const QByteArray & clientHash) const {
+    virtual bool verify(const QByteArray & clientHash) const {
         return clientHash == m_clientHash;
     }
 
@@ -318,7 +327,7 @@ private:
 class SimpleSrpClient {
 public:
     SimpleSrpClient() :
-        m_g(2), m_k(3),
+        m_g(2),
         m_N(QBigInt::fromString(nist_p,16)),
         m_privKey(randomValue(m_N))
     {
@@ -326,13 +335,12 @@ public:
 
     virtual ~SimpleSrpClient() {}
 
-    virtual bool verify(SimpleSrpServer & server, const QString & user, const QString & pass)
+    virtual bool verify(ISimpleSrpServer & server, const QString & user, const QString & pass)
     {
         const QBigInt A = QBigInt(m_g).modExp(m_privKey, m_N);
         //I, A = g**a % n
         SimpleSrpServer::HandshakeRetType resp = server.handshake(user, A);
 
-        const QByteArray userN = user.normalized(QString::NormalizationForm_C).toUtf8();
         const QByteArray passN = pass.normalized(QString::NormalizationForm_C).toUtf8();
         // x = SHA256(salt|password)
         const QBigInt x = hashAndToInt(resp.salt + passN);
@@ -350,9 +358,72 @@ public:
     }
 
 protected:
-    const unsigned int m_g, m_k;
+    const unsigned int m_g;
     const QBigInt m_N;
     const QBigInt m_privKey;
+};
+
+class MitmSimpleServer : public ISimpleSrpServer {
+public:
+    MitmSimpleServer ()
+        : m_g(2),
+          m_N(QBigInt::fromString(nist_p,16)),
+          m_fixedSalt(QByteArray(1,'A'))
+    {}
+
+    virtual HandshakeRetType handshake(const QString & user, const QBigInt & A){
+
+        m_A = A;
+        HandshakeRetType ret;
+        ret.salt = m_fixedSalt;
+        ret.B = QBigInt(m_g);
+        ret.u = QBigInt::one();
+
+        m_user = user;
+        return ret;
+    }
+
+    virtual bool verify(const QByteArray & clientHash) const {
+        const_cast<MitmSimpleServer*>(this)->m_clientHash = clientHash;
+
+        return false;
+    }
+
+
+    QByteArray dictionaryAttack() {
+        QList< QByteArray> dictionary;
+        dictionary << "Not this one" << "qwerty" << "123456"
+                   << "secret-password" << "fake";
+
+        // Dictionary attack.
+        foreach (const QByteArray & item, dictionary) {
+            // x = SHA256(salt|password)
+            const QBigInt x = hashAndToInt(m_fixedSalt + item);
+
+            // S = B**(a + ux) % n
+            //   = (A * g**x)%n
+            const QBigInt S = ( m_A * QBigInt(m_g).modExp(x, m_N)) % m_N;
+
+            //  K = SHA256(S)
+            const QByteArray K = sha256Hash(S.toLittleEndianBytes());
+
+            const QByteArray hmac = qossl::hmacSha256(K,m_fixedSalt);
+
+            if (hmac == m_clientHash) {
+                qDebug() << "Recovered password: " << item;
+                return item;
+            }
+        }
+        return QByteArray();
+    }
+
+private:
+    const unsigned int m_g;
+    const QBigInt m_N;
+    const QByteArray m_fixedSalt;
+    QByteArray m_clientHash;
+    QString m_user;
+    QBigInt m_A;
 };
 }
 void TestSet5_Srp::testChallenge38()
@@ -360,6 +431,8 @@ void TestSet5_Srp::testChallenge38()
     SimpleSrpServer server;
 
     SimpleSrpClient client;
+
+    // First test that the simple server works.
 
     // Good user
     QVERIFY(client.verify(server, "joeBlogs@example.com","secret-password"));
@@ -381,4 +454,27 @@ void TestSet5_Srp::testChallenge38()
 
     // Good user (again, just to make sure the failed attempts didn't corrupt).
     QVERIFY(client.verify(server, "joeBlogs@example.com","secret-password"));
+
+
+    // Now the MITM attack.
+    // The client returns a hash based on
+    //   S = B**(a + ux) % n
+    //    = (B**a * B**ux) %n
+    // and the server controls B, u. Also, n is fixed.
+    //
+    // The client provides to the server
+    // A = g **a %n
+    //   and g is fixed.
+    //
+    // So, if we provide to the client B = g, and u = 1, the client will return
+    //  S = (g**a * B**ux) %n
+    //    = (A * g**x)%n
+    // which are all values we know, apart from x. So we can dictionary attack x.
+    MitmSimpleServer hacker;
+
+    // The fake server always rejects clients
+    QVERIFY(!client.verify(hacker, "joeBlogs@example.com","secret-password"));
+
+    // Check the dictionary attack worked.
+    QCOMPARE(hacker.dictionaryAttack(), QByteArray("secret-password"));
 }
