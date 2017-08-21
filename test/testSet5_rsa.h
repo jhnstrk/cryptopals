@@ -13,4 +13,6 @@ private slots:
 
     void testBasicRsa_data();
     void testBasicRsa();
+
+    void challenge40();
 };

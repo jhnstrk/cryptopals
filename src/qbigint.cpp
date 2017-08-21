@@ -559,7 +559,7 @@ namespace {
             return ReturnType(q, r);
         }
 
-        ReturnType t =  unsigned_divide_1(num,den);
+        ReturnType t =  unsigned_divide_k(num,den);
 
         return t;
     }
@@ -951,6 +951,9 @@ bool operator==(const QBigInt & a, const QBigInt::WordType b)
 
 bool operator<(const QBigInt &a, const QBigInt &b)
 {
+    if (!a.isValid() || !b.isValid()) {
+        return false;
+    }
     if (a.isZero() && b.isZero()) {
         // Do not compare signs if zero
         return false;
@@ -971,6 +974,43 @@ bool operator<(const QBigInt &a, const QBigInt &b)
     } else {
         return cmp == -1;
     }
+}
+
+bool operator<=(const QBigInt &a, const QBigInt &b)
+{
+    return (a < b) || (a == b);
+}
+
+bool operator>(const QBigInt &a, const QBigInt &b)
+{
+    if (!a.isValid() || !b.isValid()) {
+        return false;
+    }
+    if (a.isZero() && b.isZero()) {
+        // Do not compare signs if zero
+        return false;
+    }
+
+    if (!a.isNegative() && b.isNegative()) {
+        return true;
+    }
+
+    if (!b.isNegative() && a.isNegative()) {
+        return false;
+    }
+
+    // Same signs.
+    const int cmp = unsigned_compare(a.d(), b.d());
+    if (a.isNegative()) {
+        return cmp == -1;
+    } else {
+        return cmp == 1;
+    }
+}
+
+bool operator>=(const QBigInt &a, const QBigInt &b)
+{
+    return (a > b) || (a == b);
 }
 
 QBigInt operator+(const QBigInt &a, const QBigInt &b)
@@ -1234,11 +1274,18 @@ QBigInt QBigInt::invmod(const QBigInt & a, const QBigInt &n)
     QBigInt newt = QBigInt::one();
     QBigInt r = n;
     QBigInt newr = a;
+    if (newr >= n) {
+        newr = newr % n;
+        if (newr.isZero()) {
+            qWarning() << "Not invertible";
+            return QBigInt();
+        }
+    }
 
     while (!newr.isZero()) {
         QPair<QBigInt, QBigInt> qr = div(r,newr);
         QBigInt tmp = t;
-        t = newt;
+        t = newt % n;
         newt = tmp - qr.first * newt;
         r = newr;
         newr = qr.second;
@@ -1254,6 +1301,72 @@ QBigInt QBigInt::invmod(const QBigInt & a, const QBigInt &n)
     }
 
     return t;
+}
+
+QPair<QBigInt, QBigInt> QBigInt::nthRootRem(unsigned int n) const
+{
+    typedef QPair<QBigInt, QBigInt> ReturnType;
+    if (!this->isValid() || (n==0)) {
+        return ReturnType();
+    }
+    if (this->isZero()) {
+        return ReturnType(QBigInt::zero(), QBigInt::zero());
+    }
+    if (this->isOne()) {
+        return ReturnType(QBigInt::one(), QBigInt::zero());
+    }
+    
+    if (n == 1) {
+        return ReturnType(*this, QBigInt::zero());
+    }
+    const int log2 = this->highBitPosition();
+    QBigInt A = *this;
+    if (A.isNegative()) {
+        if ((n&1) == 0) {
+            // Even root of a negative number => NaN.
+            return ReturnType();
+        }
+        A.negate();
+    }
+
+    QBigInt a = A >> ((log2 + n - 1)/ n);
+
+    bool rootFound = false;
+    QBigInt rem;
+    for (int i=0; i<log2 + 30; ++i) {
+        QBigInt da = ( (A / a.exp(QBigInt(n-1)))  - a);
+        da /= n;
+        if (da.isZero()) {
+            rem = A - a.exp(QBigInt(n));
+            if (rem.isNegative()) {
+                --a;
+                rem = A - a.exp(QBigInt(n));
+                if (!rem.isNegative()) {
+                    rootFound = true;
+                    break;
+                }
+            } else {
+                QBigInt rem2 = A - (a + QBigInt::one()).exp(QBigInt(n));
+                if (rem2.isNegative()) {
+                    rootFound = true;
+                    break;
+                } else {
+                    ++a;
+                }
+            }
+        } else {
+            a += da;
+        }
+    }
+
+    if (!rootFound) {
+        qWarning() << "Did not converge";
+    }
+    if (this->isNegative()) {
+        a.negate();
+        rem.negate();
+    }
+    return ReturnType(a, rem);
 }
 
 

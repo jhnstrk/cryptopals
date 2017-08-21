@@ -90,6 +90,9 @@ public:
     // i.e. return the x for which
     //    (a * x) mod m == 1.
     static QBigInt invmod(const QBigInt &a, const QBigInt & m);
+    
+    //! Return root and remainder.
+    QPair<QBigInt,QBigInt> nthRootRem(unsigned int n) const;
 private:
     explicit QBigInt(const DataType& d, bool sign);
     friend bool operator<(const QBigInt &a, const QBigInt &b);
@@ -124,6 +127,9 @@ QBigInt operator<<(const QBigInt &a, unsigned int n);
 QBigInt operator>>(const QBigInt &a, unsigned int n);
 
 bool operator<(const QBigInt & a, const QBigInt & b);
+bool operator<=(const QBigInt & a, const QBigInt & b);
+bool operator>(const QBigInt & a, const QBigInt & b);
+bool operator>=(const QBigInt & a, const QBigInt & b);
 bool operator==(const QBigInt & a, const QBigInt & b);
 inline bool operator!=(const QBigInt & a, const QBigInt & b) {
     return !(a == b);

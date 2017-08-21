@@ -28,6 +28,9 @@ private slots:
     void testInvMod_data();
     void testInvMod();
     
+    void testNthRoot_data();
+    void testNthRoot();
+
     void testMetaType();
     void testDataStream();
 };

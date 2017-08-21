@@ -423,6 +423,12 @@ void TestBigInt::testInvMod_data()
     QTest::newRow("0") << QBigInt(0) << QBigInt(31) << QBigInt();
     QTest::newRow("1") << QBigInt(1) << QBigInt(31) << QBigInt(1);
     QTest::newRow("17,3129") << QBigInt(17) << QBigInt(3120) << QBigInt(2753);
+
+    // c_1 * m_s_1 * QBigInt::invmod(m_s_1, pub1.n))
+    const QBigInt m_s_1 = QBigInt::fromString("89ece3415b57e43346f343ff9abc600af1891395febb0f9421f2eaf6bb7c14915",16);
+    const QBigInt n_1 = QBigInt::fromString("2e8598aa0d34e70971dcc14fe54cfee9f",16);
+    const QBigInt invmod_m_n = QBigInt::fromString("ee5ca2283507fb979fd4d4b0c9a0df04",16);
+    QTest::newRow("m_s_1,n_1") << m_s_1 << n_1 << invmod_m_n;
 }
 
 void TestBigInt::testInvMod()
@@ -439,6 +445,35 @@ void TestBigInt::testInvMod()
     } else {
         QVERIFY(!t.isValid());
     }
+}
+
+void TestBigInt::testNthRoot_data()
+{
+    QTest::addColumn<QBigInt>("x");
+    QTest::addColumn<unsigned int>("n");
+    QTest::addColumn<QBigInt>("root");
+    QTest::addColumn<QBigInt>("rem");
+
+    // x s.t. vx = 1 mod m
+    QTest::newRow("4,2") << QBigInt(4) << uint(2) << QBigInt(2) << QBigInt(0);
+    QTest::newRow("321,1") << QBigInt(321) << uint(1) << QBigInt(321) << QBigInt(0);
+    QTest::newRow("9,2") << QBigInt(9) << uint(2) << QBigInt(3) << QBigInt(0);
+    QTest::newRow("1000000,2") << QBigInt(1000000) << uint(2) << QBigInt(1000) << QBigInt(0);
+    QTest::newRow("1000000,3") << QBigInt(1000000) << uint(3) << QBigInt(100) << QBigInt(0);
+    QTest::newRow("999999,2") << QBigInt(999999) << uint(2) << QBigInt(999) << QBigInt(999999 - 999*999);
+    QTest::newRow("999999,3") << QBigInt(999999) << uint(3) << QBigInt(99) << QBigInt(999999 - 99*99*99);
+    QTest::newRow("1000001,2") << QBigInt(1000001) << uint(2) << QBigInt(1000) << QBigInt(1);
+    QTest::newRow("1000001,3") << QBigInt(1000001) << uint(3) << QBigInt(100) << QBigInt(1);
+}
+void TestBigInt::testNthRoot()
+{
+    const QFETCH( QBigInt, x);
+    const QFETCH( unsigned int, n);
+    const QFETCH( QBigInt, root);
+    const QFETCH( QBigInt, rem);
+    QPair<QBigInt,QBigInt> actual = x.nthRootRem(n);
+    QCOMPARE(actual.first, root);
+    QCOMPARE(actual.second, rem);
 }
 
 void TestBigInt::testMetaType()
