@@ -1285,8 +1285,8 @@ QBigInt QBigInt::invmod(const QBigInt & a, const QBigInt &n)
     while (!newr.isZero()) {
         QPair<QBigInt, QBigInt> qr = div(r,newr);
         QBigInt tmp = t;
-        t = newt % n;
-        newt = tmp - qr.first * newt;
+        t = newt;
+        newt = (tmp - qr.first * newt)%n;
         r = newr;
         newr = qr.second;
 
@@ -1295,8 +1295,8 @@ QBigInt QBigInt::invmod(const QBigInt & a, const QBigInt &n)
             return QBigInt();
         }
 
-        if (t.isNegative()) {
-            t += n;
+        if (newt.isNegative()) {
+            newt += n;
         }
     }
 
