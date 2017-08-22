@@ -12,4 +12,6 @@ private slots:
     // Rsa - Implement unpadded message recovery oracle
     void testChallenge41();
 
+    // Rsa - Bleichenbacher's e=3 RSA Attack
+    void testChallenge42();
 };

@@ -77,3 +77,120 @@ void TestSet6::testChallenge41()
     QCOMPARE(hackedPlain, message);
 
 }
+
+
+namespace {
+    class SignAndVerify {
+    public:
+        SignAndVerify()  {
+            Rsa::KeyPair keys = Rsa::rsaKeyGen(1024);
+            m_privKey = keys.second;
+            m_pubKey = keys.first;
+        }
+
+        QByteArray pkcs1_5Pad(const QByteArray & data, const int sz)
+        {
+            const QByteArray pad1 = QByteArray::fromHex("0001");
+            const QByteArray pad2 = QByteArray::fromHex("00") + "ASN.1";
+
+            const int padLen = sz - pad1.size() - pad2.size();
+            const QByteArray padded = pad1 + QByteArray(padLen,(char)0xff) + pad2 + data;
+            return padded;
+        }
+
+        QByteArray signContent(const QByteArray & data)
+        {
+            const QByteArray hashOfData = digest(data);
+            const int numBytes = (1024) / 8;
+
+            const QByteArray paddedData = pkcs1_5Pad(hashOfData, numBytes);
+
+            return Rsa::decrypt(m_privKey,
+                     QBigInt::fromBigEndianBytes(paddedData))
+                    .toBigEndianBytes();
+        }
+
+        bool verifyBadly(const QByteArray & signature, const QByteArray & message) const
+        {
+            const QByteArray hashOfData = digest(message);
+            const QByteArray pad2 = QByteArray::fromHex("00") + "ASN.1" + hashOfData;
+
+            const QByteArray testBytes = Rsa::encrypt(m_pubKey, QBigInt::fromBigEndianBytes(signature)).toBigEndianBytes();
+
+            if (testBytes.size() < 8) {
+                return false;
+            }
+            // Leading zeros will be dropped.
+            if ( (testBytes.at(0) != 1) || (testBytes.at(1) != (char)0xff) ) {
+                return false;
+            }
+            int i = 2;
+            while (testBytes.at(i) == (char)0xff) {
+                ++i;
+                if (i > (testBytes.size() - pad2.size()) ) {
+                    qDebug() << "oob" << testBytes.size() << pad2.size();
+                    return false;
+                }
+            }
+            return (testBytes.mid(i,pad2.size()) == pad2);
+        }
+
+        const Rsa::PubKey & pubKey() const {return m_pubKey; }
+
+        // Using Md5 because Sha1 hashes are too long for this attack.
+        static QByteArray digest(const QByteArray & data) {
+            return QCryptographicHash::hash(data, QCryptographicHash::Md5);
+        }
+    private:
+        Rsa::PrivKey m_privKey;
+        Rsa::PubKey m_pubKey;
+    };
+}
+
+void TestSet6::testChallenge42()
+{
+    
+    const QByteArray message = "hi mom";
+    
+    SignAndVerify signer;
+    const QByteArray signature = signer.signContent(message);
+
+    // Check a genuine signature works.
+    QVERIFY(signer.verifyBadly(signature, message ));
+
+    // Now fake one.
+    const QByteArray hashOfMessage = SignAndVerify::digest(message);
+
+    const QByteArray pad2 = QByteArray::fromHex("01FFFF00") + "ASN.1" + hashOfMessage;
+
+    // We're looking for a number which is the cube root of the target above.
+
+    QBigInt anum = QBigInt::fromBigEndianBytes(pad2);
+
+    // Cubing will not overflow if the high bit is less than highBit(N)/3.
+    // Round down to next whole byte.
+    int padCount = ( (signer.pubKey().n.highBitPosition()/(3*8)) - pad2.size() )*8;
+
+    // Let's add some (right) padding of fff's since cube-rooting rounds down.
+    anum <<= padCount;
+    for (int i=0; i<padCount; ++i) {
+        anum.setBit(i);
+    }
+
+    // Double check we didn't overflow.
+    QVERIFY( (anum*anum*anum) < signer.pubKey().n);
+
+    // Cube root
+    typedef QPair<QBigInt,QBigInt> BigIntPair;
+    const BigIntPair rootrem = anum.nthRootRem(3);
+
+    // Check that cubing back up gives the correct initial bytes.
+    const QBigInt fakeSignatureInt = rootrem.first;
+    QCOMPARE( (fakeSignatureInt.exp(QBigInt(3)) >> padCount).toBigEndianBytes(),
+              pad2);
+
+    QByteArray fakeSignature = fakeSignatureInt.toBigEndianBytes();
+    QVERIFY(signer.verifyBadly(fakeSignature, message ));
+
+    qDebug() << "Fake signature is good"; //if we got here.
+}
