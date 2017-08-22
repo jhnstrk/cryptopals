@@ -1,6 +1,7 @@
 #include "testSet5_rsa.h"
 
 #include <qbigint.h>
+#include <rsa.h>
 #include <utils.h>
 
 #include <QDebug>
@@ -63,43 +64,7 @@ void TestSet5_Rsa::testBasicRsa()
 
 namespace {
 
-    struct PrivKey {
-        QBigInt d,n;
-    };
-    struct PubKey {
-        QBigInt e,n;
-    };
-
-    typedef QPair<PubKey, PrivKey> KeyPair;
-    KeyPair rsaKeyGen(int bits) {
-        //    Generate 2 random primes. ... Call them "p" and "q".
-        const QBigInt p = QBigInt::fromBigEndianBytes(qossl::primeGen(bits));
-        const QBigInt q = QBigInt::fromBigEndianBytes(qossl::primeGen(bits));
-        //    Let n be p * q. Your RSA math is modulo n.
-        const QBigInt n = p*q;
-        //    Let et be (p-1)*(q-1) (the "totient"). You need this value only for keygen.
-        const QBigInt et = (p-1)*(q-1);
-        //    Let e be 3.
-        const QBigInt e(3);
-        //    Compute d = invmod(e, et).
-        const QBigInt d = QBigInt::invmod(e,et);
-        //    Your public key is [e, n]. Your private key is [d, n].
-        PubKey pub;
-        pub.e = e;
-        pub.n = n;
-
-        PrivKey priv;
-        priv.d = d;
-        priv.n = n;
-        return KeyPair(pub,priv);
-    }
-
-    QBigInt encrypt(const PubKey & key, const QBigInt & m) {
-        return m.modExp(key.e,key.n);
-    }
-    QBigInt decrypt(const PrivKey & key, const QBigInt & c) {
-        return c.modExp(key.d,key.n);
-    }
+    using namespace Rsa;
 
     QByteArray broadcastAttack(const QBigInt & c_0,const QBigInt & c_1,const QBigInt & c_2,
                                const PubKey & pub0,const PubKey & pub1,const PubKey & pub2)
