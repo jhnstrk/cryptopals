@@ -52,7 +52,7 @@ KeyPair dsaKeyGen(const Parameters & param)
     return ret;
 }
 
-Signature signHash(const PrivKey & key, const QByteArray & m)
+Signature signHash(const PrivKey & key, const QBigInt & Hm)
 {
     const QBigInt & x = key.x;
     const QBigInt & p = key.param.p;
@@ -74,29 +74,23 @@ Signature signHash(const PrivKey & key, const QByteArray & m)
            continue;  // Also unlikely.
        }
 
-       const QBigInt Hm = QBigInt::fromBigEndianBytes(m);
-
        const QBigInt s = (QBigInt::invmod(k,q) * (Hm + x * r)) % q;
        if (s.isZero()) {
            continue;  // Also unlikely.
        }
 
-       Signature ret;
-       ret.r = r;
-       ret.s = s;
-       return ret;
+       return Signature(r,s);
     }
     // Can never reach here;
 }
 
-bool verifyMessageSignature(const PubKey & key, const Signature & sig, const QByteArray & m){
+bool verifyMessageSignature(const PubKey & key, const Signature & sig, const QBigInt &Hm){
     const QBigInt & r = sig.r;
     const QBigInt & s = sig.s;
     const QBigInt & y = key.y;
     const QBigInt & p = key.param.p;
     const QBigInt & q = key.param.q;
     const QBigInt & g = key.param.g;
-    const QBigInt Hm = QBigInt::fromBigEndianBytes(m);
 
     if ( !( QBigInt(0) < r ) ) {
         return false;

@@ -13,4 +13,6 @@ private slots:
     // Dsa - Implement DSA
     void testBasicDsa();
 
+    // Key recovery from nonce.
+    void testChallenge43();
 };
