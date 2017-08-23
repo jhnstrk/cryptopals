@@ -11,6 +11,7 @@ set( ${PROJECT_NAME}_HEADERS_MOC
   testSet5_srp.h
   testSet5_rsa.h
   testSet6.h
+  testSet6_dsa.h
   testBigInt.h
   )
 
@@ -28,6 +29,7 @@ set( ${PROJECT_NAME}_MAIN_SOURCES
   testSet5_srp.cpp
   testSet5_rsa.cpp
   testSet6.cpp
+  testSet6_dsa.cpp
   testBigInt.cpp
   )
 

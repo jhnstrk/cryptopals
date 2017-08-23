@@ -619,7 +619,7 @@ namespace {
     };
 }
 
-QByteArray primeGen(int bits)
+QByteArray primeGen(int bits, const QByteArray &addbytes)
 {
     if (bits <= 0) {
         qDebug() << "Number of bits requested is <=0" << bits;
@@ -627,19 +627,29 @@ QByteArray primeGen(int bits)
     }
 
     QScopedPointer< BIGNUM, BigNumDeleter > newPrime(BN_new());
+    QScopedPointer< BIGNUM, BigNumDeleter > add;
+
+    if (!addbytes.isEmpty()) {
+        add.reset(BN_new());
+        BIGNUM * bn = BN_bin2bn(reinterpret_cast<const unsigned char *>(addbytes.constData()),
+                               addbytes.size(), add.data());
+        if (bn == NULL) {
+            qWarning() << "Bad constraint value";
+            return QByteArray();
+        }
+    }
+
     const int safe = 0;
-    // If safe is true, it will be a safe prime (i.e. a prime p so that
-    // (p-1)/2 is also prime)
     // If add is not NULL, the prime will fulfill the condition
     // p % add == rem (p % add == 1 if rem == NULL) in order to suit
     // a given generator.
-    const BIGNUM *add = NULL;
+
     const BIGNUM *rem = NULL;
 
     // Callback to show some kind of progress.
     BN_GENCB *cb = NULL;
     int status = BN_generate_prime_ex(newPrime.data(), bits, safe,
-                             add, rem, cb);
+                             add.data(), rem, cb);
     if (status == 0) {
         qWarning() << "Prime generation failed";
         return QByteArray();

@@ -13,6 +13,7 @@ set( ${PROJECT_NAME}_HEADERS
   ${${PROJECT_NAME}_HEADERS_MOC}
   qossl_internal.h
   bitsnbytes.h
+  dsa.h
   hmac.h
   md4.h
   mersene_twister.h
@@ -31,6 +32,7 @@ add_library( qossl SHARED
   ${${PROJECT_NAME}_HEADERS}
   qossl_internal.cpp
   bitsnbytes.cpp
+  dsa.cpp
   hmac.cpp
   utils.cpp
   md4.cpp
