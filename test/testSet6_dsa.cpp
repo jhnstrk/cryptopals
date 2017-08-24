@@ -188,3 +188,136 @@ void TestSet6_Dsa::testChallenge43()
 
     // x = 15fb2873d16b3e129ff76d0918fd7ada54659e49
 }
+
+
+namespace Challenge44 {
+    struct Entry {
+        QByteArray msg;
+        Dsa::Signature sig;
+        QBigInt m;
+    };
+
+    QPair< QByteArray, QByteArray > splitLine(const QByteArray & line){
+        typedef QPair< QByteArray, QByteArray >    ReturnType;
+        int ix = line.indexOf(':');
+        if (ix == -1) {
+            return ReturnType();
+        }
+        return ReturnType(line.mid(0,ix), line.mid(ix+1));
+    }
+}
+void TestSet6_Dsa::testChallenge44()
+{
+    using namespace Challenge44;
+
+    QVector<Entry> entries;
+
+    QFile file(":/qossl_test_resources/rsc/set6/44.txt");
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    while (file.isReadable() && !file.atEnd()) {
+
+        Entry e;
+        QByteArray line = file.readLine();
+        e.msg = splitLine(line).second;
+        QVERIFY(splitLine(line).first == "msg");
+        line = file.readLine();
+        e.sig.s = QBigInt::fromString(splitLine(line).second.trimmed(),10);
+        QVERIFY(splitLine(line).first == "s");
+        line = file.readLine();
+        e.sig.r = QBigInt::fromString(splitLine(line).second.trimmed(),10);
+        QVERIFY(splitLine(line).first == "r");
+        line = file.readLine();
+        e.m = QBigInt::fromString(splitLine(line).second.trimmed(),16);
+        QVERIFY(splitLine(line).first == "m");
+        if (e.msg.startsWith(' ')) {
+            e.msg = e.msg.mid(1);
+        }
+        entries.push_back(e);
+    }
+    file.close();
+
+
+    const Dsa::Parameters param(getChallenge43Param());
+    const QBigInt & q = param.q;
+    const QBigInt y = QBigInt::fromString(
+                "2d026f4bf30195ede3a088da85e398ef869611d0f68f07"
+                "13d51c9c1a3a26c95105d915e2d8cdf26d056b86b8a7b8"
+                "5519b1c23cc3ecdc6062650462e3063bd179c2a6581519"
+                "f674a61f1d89a1fff27171ebc1b93d4dc57bceb7ae2430"
+                "f98a6a4d83d8279ee65d71c1203d2c96d65ebbf7cce9d3"
+                "2971c3de5084cce04a2e147821",16);
+
+    Dsa::PubKey pubKey;
+    pubKey.y = y;
+    pubKey.param = param;
+
+    typedef QHash< QBigInt, QList< int > > HashType;
+    QHash< QBigInt, QList< int > > rHash;
+
+    // Theory:
+    // Since we have:    s = k^-1 (H(m) + xr) % q
+    // if two messages use the same k, take the difference and we get:
+    //     s1 - s2 = (k^-1(H(m1) + xr) - k^-1(H(m2) + xr)) %q
+    //     k(s1-s2) = (H(m1) - H(m2) +xr - xr ) %q
+    //     k(s1-s2) = (H(m1) - H(m2)) %q
+    //
+    // Since the r value only depends on k, repeated r means same k.
+
+    // For each pair of messages, determine k, if possible.
+    for (int i=0; i<entries.size()-1; ++i) {
+        const Entry e1 = entries.at(i);
+
+        // Just checking.
+        QVERIFY(Dsa::verifyMessageSignature(pubKey,e1.sig,e1.m));
+
+        rHash[e1.sig.r].append( i );
+
+    }
+
+    Dsa::PrivKey priv;
+    priv.param = param;
+
+    for (HashType::const_iterator it(rHash.constBegin());
+         it != rHash.constEnd(); ++it)
+    {
+        if (it.value().size() > 1) {
+            const Entry e1 = entries.at(it.value().at(0));
+            const Entry e2 = entries.at(it.value().at(1));
+            QBigInt ds = ( e1.sig.s - e2.sig.s) % q;
+            if (ds.isNegative()) {
+                ds += q;
+            }
+            QBigInt dm = ( e1.m - e2.m) % q;
+            if (dm.isNegative()) {
+                dm += q;
+            }
+
+            QList<int> values = it.value();
+            std::sort(values.begin(), values.end());
+            const QBigInt k = QBigInt::invmod( ds,q ) * dm % q;
+            qDebug() << "k = " << k.toString(16) << "used for messages" << values;
+
+            // Use k to derive x; use first match.
+            // We know s = k^-1 (H(m) + xr) % q
+            // so
+            //    x = r^-1 ( sk - H(m) ) % q
+            QBigInt x = QBigInt::invmod(e1.sig.r,q) * (e1.sig.s * k - e1.m) % q;
+            if (x.isNegative()) {
+                x += q;
+            }
+            qDebug() << "x = " << x.toString(16);
+            // Check same x is recovered.
+            if (priv.x.isValid()) {
+                QCOMPARE(priv.x.toBigEndianBytes(), x.toBigEndianBytes());
+            } else {
+                priv.x = x;
+            }
+        }
+    }
+
+    // Check we got the right x
+    QCOMPARE( sha1Hash(priv.x.toString(16).toUtf8()).toHex(),
+              QByteArray("ca8f6f7c66fa362d40760d135b763eb8527d3d52"));
+
+    // x = f1b733db159c66bce071d21e044a48b0e4c1665a
+}

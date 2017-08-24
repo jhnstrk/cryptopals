@@ -15,4 +15,7 @@ private slots:
 
     // Key recovery from nonce.
     void testChallenge43();
+
+    // repeated nonce - recovery of nonce.
+    void testChallenge44();
 };
