@@ -26,6 +26,10 @@ public:
     static QBigInt fromBigEndianBytes(const QByteArray & bytes);
 
     QBigInt & operator=(const QBigInt & other);
+    QBigInt & operator=(qint32 i) { return this->operator =(QBigInt(i)); }
+    QBigInt & operator=(quint32 i) { return this->operator =(QBigInt(i)); }
+    QBigInt & operator=(qint64 i) { return this->operator =(QBigInt(i)); }
+    QBigInt & operator=(quint64 i) { return this->operator =(QBigInt(i)); }
 
     QString toString(int base = 10) const;
     QByteArray toBigEndianBytes() const;

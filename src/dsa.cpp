@@ -1,6 +1,8 @@
 #include "dsa.h"
 #include "utils.h"
 
+#include <QDebug>
+
 namespace Dsa {
 
 Parameters dsaParamGen(int bitsN, int bitsL)
@@ -66,11 +68,19 @@ Signature signHash(const PrivKey & key, const QBigInt & Hm)
        const QBigInt k = QBigInt::fromBigEndianBytes(qossl::randomBytes(numBytes)) % q;
 
        if (k < QBigInt(2)) {
+           if (q < QBigInt(3)) {
+               qWarning() << "Bad q";
+               return Signature();
+           }
            continue;
        }
 
        const QBigInt r = g.powm(k,p) % q;
        if (r.isZero()){
+           if (g.isZero() || (g % p).isZero() || (g % q).isZero()) {
+               qWarning() << "g is zero";
+               return Signature();
+           }
            continue;  // Also unlikely.
        }
 

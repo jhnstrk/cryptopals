@@ -321,3 +321,102 @@ void TestSet6_Dsa::testChallenge44()
 
     // x = f1b733db159c66bce071d21e044a48b0e4c1665a
 }
+
+
+namespace Challenge45 {
+using namespace Dsa;
+
+Signature unsafeSignHash(const PrivKey & key, const QBigInt & Hm)
+{
+    const QBigInt & x = key.x;
+    const QBigInt & p = key.param.p;
+    const QBigInt & q = key.param.q;
+    const QBigInt & g = key.param.g;
+
+    // Random number less than q
+    const unsigned int numBytes = (q.highBitPosition() + 7) / 8;
+
+    while(true) {
+       const QBigInt k = QBigInt::fromBigEndianBytes(qossl::randomBytes(numBytes)) % q;
+
+       if (k < QBigInt(2)) {
+           continue;
+       }
+       const QBigInt r = g.powm(k,p) % q;
+       const QBigInt s = (QBigInt::invmod(k,q) * (Hm + x * r)) % q;
+       return Signature(r,s);
+    }
+    // Can never reach here;
+}
+
+bool unsafeVerifyMessageSignature(const PubKey & key, const Signature & sig, const QBigInt &Hm){
+    const QBigInt & r = sig.r;
+    const QBigInt & s = sig.s;
+    const QBigInt & y = key.y;
+    const QBigInt & p = key.param.p;
+    const QBigInt & q = key.param.q;
+    const QBigInt & g = key.param.g;
+
+    const QBigInt w = QBigInt::invmod(s,q);
+    const QBigInt u1 = (Hm * w) % q;
+    const QBigInt u2 = (r * w) % q;
+    const QBigInt v = ( ( g.powm(u1,p) * y.powm(u2,p) ) % p ) % q;
+
+    return v == r;
+}
+
+
+}
+void TestSet6_Dsa::testChallenge45_g0()
+{
+    using namespace Challenge45;
+    Dsa::Parameters param0g(getChallenge43Param());
+    param0g.g = 0;
+
+    Dsa::KeyPair keyp = Dsa::dsaKeyGen(param0g);
+
+    const QBigInt messageHash = QBigInt::fromBigEndianBytes(sha1Hash("Hello world"));
+
+    Dsa::Signature sig0 = unsafeSignHash(keyp.second, messageHash);
+
+    // if g is zero then r is zero.
+    QVERIFY(sig0.r.isZero());
+    QVERIFY(!sig0.s.isZero());  // s is not zero.
+
+    QVERIFY(keyp.first.y.isZero()); // But y is also zero
+    // So the message verifies ok
+    QVERIFY(unsafeVerifyMessageSignature(keyp.first,sig0,messageHash));
+    // and so does any other value
+    QVERIFY(unsafeVerifyMessageSignature(keyp.first,sig0,QBigInt(123)));
+
+
+}
+void TestSet6_Dsa::testChallenge45_gp1()
+{
+    using namespace Challenge45;
+    Dsa::Parameters paramgp1(getChallenge43Param());
+    paramgp1.g = paramgp1.p + 1;
+
+    Dsa::KeyPair keyp = Dsa::dsaKeyGen(paramgp1);
+
+    // g = p + 1
+    // Means that y (public key) is always 1.
+    // And r is always 1
+    QVERIFY( keyp.first.y == QBigInt::one() );
+
+    Dsa::Signature magic;
+    const QBigInt z = QBigInt::fromBigEndianBytes(qossl::randomBytes(16));
+
+    magic.r = keyp.first.y.powm(z,paramgp1.p) % paramgp1.q;   // ((y**z) % p) % q
+    magic.s = QBigInt::invmod(z,paramgp1.q) * magic.r % paramgp1.q; // (r / z % q)
+
+    // Not sure the value of s is important here; with r = 1 & g = 1 anything goes.
+
+    const QBigInt messageHash1 = QBigInt::fromBigEndianBytes(sha1Hash("Hello, world"));
+    const QBigInt messageHash2 = QBigInt::fromBigEndianBytes(sha1Hash("Goodbye, world"));
+
+    // So the message verifies ok
+    QVERIFY(unsafeVerifyMessageSignature(keyp.first,magic,messageHash1));
+    // and so does any other value
+    QVERIFY(unsafeVerifyMessageSignature(keyp.first,magic,messageHash2));
+}
