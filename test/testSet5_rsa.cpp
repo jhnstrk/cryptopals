@@ -54,10 +54,10 @@ void TestSet5_Rsa::testBasicRsa()
 
     //    To encrypt: c = m**e%n. To decrypt: m = c**d%n
     //    Test this out with a number, like "42".
-    const QBigInt c = QBigInt::fromBigEndianBytes(message).modExp(e,n);
+    const QBigInt c = QBigInt::fromBigEndianBytes(message).powm(e,n);
 
     // Decrypt...
-    const QBigInt m = c.modExp(d,n);
+    const QBigInt m = c.powm(d,n);
     QCOMPARE(m.toBigEndianBytes(), message);
     //    Repeat with bignum primes (keep e=3).
 }

@@ -65,7 +65,7 @@ void TestSet6::testChallenge41()
     const QBigInt E = serv.pubKey().e;
     const QBigInt s = QBigInt::fromBigEndianBytes("somerandombytes") % N;
     //C' = ((S**E mod N) C) mod N
-    const QBigInt c1 = (s.modExp(E,N) * c) % N;
+    const QBigInt c1 = (s.powm(E,N) * c) % N;
 
     const QByteArray p1 = serv.request(c1.toBigEndianBytes());
     QVERIFY(!p1.isEmpty());
@@ -186,7 +186,7 @@ void TestSet6::testChallenge42()
 
     // Check that cubing back up gives the correct initial bytes.
     const QBigInt fakeSignatureInt = rootrem.first;
-    QCOMPARE( (fakeSignatureInt.exp(QBigInt(3)) >> padCount).toBigEndianBytes(),
+    QCOMPARE( (fakeSignatureInt.pow(QBigInt(3)) >> padCount).toBigEndianBytes(),
               pad2);
 
     QByteArray fakeSignature = fakeSignatureInt.toBigEndianBytes();

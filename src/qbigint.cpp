@@ -78,7 +78,7 @@ namespace {
 
     enum Flags { SignFlag = 0x1, IsNull = 0x02, InValid = 0x04 };
 
-    void shrink_vec(QBigInt::DataType & d) {
+    void remove_trailing_zeros(QBigInt::DataType & d) {
         int count = 0;
         for (int i=d.size()-1; i>=0 && d.at(i) == 0; --i) {
             ++count;
@@ -207,7 +207,7 @@ namespace {
             vp[i] = static_cast<QBigInt::WordType>(x_i - y_i);
         }
 
-        shrink_vec(v);
+        remove_trailing_zeros(v);
     }
 
     // divide by value
@@ -538,8 +538,8 @@ namespace {
         QBigInt::DataType r = u.mid(0,v.size());
         unsigned_rshift(r,dShift);
 
-        shrink_vec(q);
-        shrink_vec(r);
+        remove_trailing_zeros(q);
+        remove_trailing_zeros(r);
         typedef QPair<QBigInt::DataType, QBigInt::DataType>  ReturnType;
         return ReturnType(q, r);
     }
@@ -689,7 +689,7 @@ QString QBigInt::toString(int base) const
     QString ret;
     while (!t.isZero()) {
         WordType remainder;
-        t = t.div( (WordType)base, remainder);
+        t = t.divRem( (WordType)base, remainder);
         ret.push_front( valueToChar(remainder) );
     }
     if (this->isNegative()) {
@@ -871,7 +871,7 @@ QBigInt &QBigInt::operator>>=(const unsigned int v)
 QBigInt &QBigInt::operator/=(const QBigInt::WordType value)
 {
     QBigInt::WordType r;
-    return this->div(value, r);
+    return this->divRem(value, r);
 }
 
 QBigInt &QBigInt::operator*=(const QBigInt::WordType v)
@@ -890,7 +890,62 @@ QBigInt &QBigInt::operator*=(const QBigInt &other)
     return *this;
 }
 
-QBigInt &QBigInt::div(const QBigInt::WordType value, QBigInt::WordType & r)
+QBigInt &QBigInt::operator|=(const QBigInt &other)
+{
+    if ((!this->isValid()) || (!other.isValid())) {
+        this->setFlags( InValid );
+        return *this;
+    }
+    const int len = std::min(other.d().size(), m_d.size());
+    if (other.d().size() > m_d.size()) {
+        const int oldSize = m_d.size();
+        this->m_d.resize(other.m_d.size());
+        for (int i=oldSize; i<m_d.size(); ++i) {
+            m_d[i] = other.m_d.at(i);
+        }
+    }
+    for (int i=0;i<len; ++i) {
+        m_d[i] |= other.m_d.at(i);
+    }
+    return *this;
+}
+
+QBigInt &QBigInt::operator&=(const QBigInt &other)
+{
+    if ((!this->isValid()) || (!other.isValid())) {
+        this->setFlags( InValid );
+        return *this;
+    }
+    const int len = std::min(other.d().size(), m_d.size());
+    m_d.resize(len); // trailing values must be zero.
+    for (int i=0;i<len; ++i) {
+        m_d[i] &= other.m_d.at(i);
+    }
+    remove_trailing_zeros(m_d);
+    return *this;
+}
+
+QBigInt &QBigInt::operator^=(const QBigInt &other)
+{
+    if ((!this->isValid()) || (!other.isValid())) {
+        this->setFlags( InValid );
+        return *this;
+    }
+    const int len = std::min(other.d().size(), m_d.size());
+    if (other.d().size() > m_d.size()) {
+        const int oldSize = m_d.size();
+        this->m_d.resize(other.m_d.size());
+        for (int i=oldSize; i<m_d.size(); ++i) {
+            m_d[i] = other.m_d.at(i);
+        }
+    }
+    for (int i=0;i<len; ++i) {
+        m_d[i] ^= other.m_d.at(i);
+    }
+    return *this;
+}
+
+QBigInt &QBigInt::divRem(const QBigInt::WordType value, QBigInt::WordType & r)
 {
     if (this->isZero()) {
         r = 0;
@@ -922,9 +977,9 @@ QBigInt::QBigInt(const QBigInt::DataType &d, bool sign) :
 
 }
 
-void QBigInt::shrink()
+void QBigInt::remove_leading_zeros()
 {
-    shrink_vec(m_d);
+    remove_trailing_zeros(m_d);
 }
 
 bool operator==(const QBigInt &a, const QBigInt &b)
@@ -1110,16 +1165,16 @@ QBigInt operator*(const QBigInt &a, const QBigInt &b)
 
 QBigInt operator/(const QBigInt &a, const QBigInt &b)
 {
-    return QBigInt::div(a,b).first;
+    return QBigInt::divRem(a,b).first;
 }
 
 QBigInt operator%(const QBigInt &a, const QBigInt &b)
 {
-    return QBigInt::div(a,b).second;
+    return QBigInt::divRem(a,b).second;
 }
 
 // static
-QPair <QBigInt,QBigInt> QBigInt::div(const QBigInt &a, const QBigInt &b)
+QPair <QBigInt,QBigInt> QBigInt::divRem(const QBigInt &a, const QBigInt &b)
 {
     typedef QPair <QBigInt,QBigInt> ReturnType;
     if (!a.isValid()) {
@@ -1184,7 +1239,7 @@ QPair <QBigInt,QBigInt> QBigInt::div(const QBigInt &a, const QBigInt &b)
     return ReturnType(QBigInt(), QBigInt());;
 }
 
-QBigInt QBigInt::exp(const QBigInt &p) const
+QBigInt QBigInt::pow(const QBigInt &p) const
 {
     if (p.isNegative()) {
         qWarning() << "Cannot raise to negative power" << p;
@@ -1210,7 +1265,7 @@ QBigInt QBigInt::exp(const QBigInt &p) const
     return xtmp * ytmp;
 }
 
-QBigInt QBigInt::modExp(const QBigInt &p, const QBigInt &m) const
+QBigInt QBigInt::powm(const QBigInt &p, const QBigInt &m) const
 {
     if (p.isNegative()) {
         qWarning() << "Cannot raise to negative power" << p;
@@ -1283,7 +1338,7 @@ QBigInt QBigInt::invmod(const QBigInt & a, const QBigInt &n)
     }
 
     while (!newr.isZero()) {
-        QPair<QBigInt, QBigInt> qr = div(r,newr);
+        QPair<QBigInt, QBigInt> qr = divRem(r,newr);
         QBigInt tmp = t;
         t = newt;
         newt = (tmp - qr.first * newt)%n;
@@ -1334,19 +1389,19 @@ QPair<QBigInt, QBigInt> QBigInt::nthRootRem(unsigned int n) const
     bool rootFound = false;
     QBigInt rem;
     for (int i=0; i<log2 + 30; ++i) {
-        QBigInt da = ( (A / a.exp(QBigInt(n-1)))  - a);
+        QBigInt da = ( (A / a.pow(QBigInt(n-1)))  - a);
         da /= n;
         if (da.isZero()) {
-            rem = A - a.exp(QBigInt(n));
+            rem = A - a.pow(QBigInt(n));
             if (rem.isNegative()) {
                 --a;
-                rem = A - a.exp(QBigInt(n));
+                rem = A - a.pow(QBigInt(n));
                 if (!rem.isNegative()) {
                     rootFound = true;
                     break;
                 }
             } else {
-                QBigInt rem2 = A - (a + QBigInt::one()).exp(QBigInt(n));
+                QBigInt rem2 = A - (a + QBigInt::one()).pow(QBigInt(n));
                 if (rem2.isNegative()) {
                     rootFound = true;
                     break;
@@ -1418,5 +1473,26 @@ QDataStream &operator>>(QDataStream &in, QBigInt &obj)
 
 QBigInt operator%(const QBigInt &a, const QBigInt::WordType v)
 {
-    return QBigInt::div(a,QBigInt(v)).second;
+    return QBigInt::divRem(a,QBigInt(v)).second;
+}
+
+QBigInt operator|(const QBigInt &a, const QBigInt &b)
+{
+    QBigInt tmp(a);
+    tmp |= b;
+    return tmp;
+}
+
+QBigInt operator&(const QBigInt &a, const QBigInt &b)
+{
+    QBigInt tmp(a);
+    tmp &= b;
+    return tmp;
+}
+
+QBigInt operator^(const QBigInt &a, const QBigInt &b)
+{
+    QBigInt tmp(a);
+    tmp ^= b;
+    return tmp;
 }

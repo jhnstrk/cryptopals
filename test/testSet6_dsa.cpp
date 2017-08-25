@@ -97,7 +97,7 @@ namespace {
         const QBigInt & q = key.param.q;
         const QBigInt & g = key.param.g;
 
-        const QBigInt r = g.modExp(k,p) % q;
+        const QBigInt r = g.powm(k,p) % q;
 
         const QBigInt s = (QBigInt::invmod(k,q) * (Hm + x * r)) % q;
 
@@ -146,8 +146,8 @@ void TestSet6_Dsa::testChallenge43()
 
         // See if the recovered public key matches.
         // Could be quicker than checking the signature, as no invmod is needed.
-        // But it isn't. Invmod is faster than modExp here.
-//        const QBigInt y_test = param.g.modExp(x,param.p);
+        // But it isn't. Invmod is faster than powm here.
+//        const QBigInt y_test = param.g.powm(x,param.p);
 //        if (y_test == y) {
 //            qDebug() << "Key is good, nonce was" << k;
 //            qDebug() << x.toString(16);
@@ -183,7 +183,7 @@ void TestSet6_Dsa::testChallenge43()
     qDebug() << "Recovered key generates correct signature";
 
      // Also confirm the public key, derived from the private key, matches:
-    const QBigInt y_test = param.g.modExp(recoveredKey.x,param.p);
+    const QBigInt y_test = param.g.powm(recoveredKey.x,param.p);
     QCOMPARE(y_test.toString(16), y.toString(16));
 
     // x = 15fb2873d16b3e129ff76d0918fd7ada54659e49

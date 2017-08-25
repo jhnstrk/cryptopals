@@ -68,13 +68,13 @@ namespace {
             const QBigInt v = QBigInt::fromBigEndianBytes(detail.v);
             // B=kv + g**b % N
             const QBigInt B = QBigInt(m_k) * v
-                    + QBigInt(m_g).modExp(m_privKey,m_N);
+                    + QBigInt(m_g).powm(m_privKey,m_N);
 
             // uH = SHA256(A|B), u = integer of uH
             const QBigInt u = hashAndToInt(A.toBigEndianBytes() + B.toBigEndianBytes());
 
             // S = (A * v**u) ** b % N
-            const QBigInt S = (A * v.modExp(u,m_N)).modExp(m_privKey,m_N);
+            const QBigInt S = (A * v.powm(u,m_N)).powm(m_privKey,m_N);
 
             const QByteArray K = sha256Hash(S.toBigEndianBytes());
             m_clientHash = qossl::hmacSha256(K,salt);
@@ -95,7 +95,7 @@ namespace {
             const QByteArray salt = qossl::randomBytes(16);
             const QBigInt x = hashAndToInt( salt + passN );
             // v=g**x % N
-            const QBigInt v = QBigInt(m_g).modExp(x,m_N);
+            const QBigInt v = QBigInt(m_g).powm(x,m_N);
             UserDetail detail;
             detail.salt = salt;
             detail.v = v.toBigEndianBytes();
@@ -152,13 +152,13 @@ namespace {
 
     protected:
         virtual QBigInt getA() const {
-            return  QBigInt(m_g).modExp(m_privKey, m_N);
+            return  QBigInt(m_g).powm(m_privKey, m_N);
         }
 
         virtual QBigInt getS(const QBigInt & B, const QBigInt & u, const QBigInt & x) const {
             // S = (B - k * g**x)**(a + u * x) % N
             // S = (B - k * (g**x %N))**(a + u * x) % N
-            return (B - QBigInt(m_k) * QBigInt(m_g).modExp(x,m_N)).modExp(m_privKey + (u * x), m_N);
+            return (B - QBigInt(m_k) * QBigInt(m_g).powm(x,m_N)).powm(m_privKey + (u * x), m_N);
         }
     protected:
         const unsigned int m_g,m_k;
@@ -204,7 +204,7 @@ public:
 protected:
     virtual QBigInt getA() const Q_DECL_OVERRIDE {
         return m_N * QBigInt(m_multipleA);
-        // return  QBigInt(m_g).modExp(m_privKey, m_N);
+        // return  QBigInt(m_g).powm(m_privKey, m_N);
     }
 
     virtual QBigInt getS(const QBigInt &, const QBigInt &, const QBigInt &) const Q_DECL_OVERRIDE {
@@ -277,13 +277,13 @@ public:
         HandshakeRetType ret;
         ret.salt = detail.salt;
         // salt, B = g**b % n, u = 128 bit random number
-        ret.B = QBigInt(m_g).modExp(m_privKey,m_N);
+        ret.B = QBigInt(m_g).powm(m_privKey,m_N);
         ret.u = QBigInt::fromBigEndianBytes(qossl::randomBytes(128/8));
 
         const QBigInt v = QBigInt::fromBigEndianBytes(detail.v);
         // S = (A * v ** u)**b % n
         // K = SHA256(S)
-        const QBigInt S = (A * v.modExp(ret.u,m_N)).modExp(m_privKey,m_N);
+        const QBigInt S = (A * v.powm(ret.u,m_N)).powm(m_privKey,m_N);
         const QByteArray K = sha256Hash(S.toBigEndianBytes());
         m_clientHash = qossl::hmacSha256(K,ret.salt);
 
@@ -304,7 +304,7 @@ private:
         const QByteArray salt = qossl::randomBytes(16);
         const QBigInt x = hashAndToInt( salt + passN );
         //v = g**x % n
-        const QBigInt v = QBigInt(m_g).modExp(x,m_N);
+        const QBigInt v = QBigInt(m_g).powm(x,m_N);
         UserDetail detail;
         detail.salt = salt;
         detail.v = v.toBigEndianBytes();
@@ -337,7 +337,7 @@ public:
 
     virtual bool verify(ISimpleSrpServer & server, const QString & user, const QString & pass)
     {
-        const QBigInt A = QBigInt(m_g).modExp(m_privKey, m_N);
+        const QBigInt A = QBigInt(m_g).powm(m_privKey, m_N);
         //I, A = g**a % n
         SimpleSrpServer::HandshakeRetType resp = server.handshake(user, A);
 
@@ -346,7 +346,7 @@ public:
         const QBigInt x = hashAndToInt(resp.salt + passN);
 
         // S = B**(a + ux) % n
-        const QBigInt S = resp.B.modExp(m_privKey + resp.u * x, m_N);
+        const QBigInt S = resp.B.powm(m_privKey + resp.u * x, m_N);
 
         //  K = SHA256(S)
         const QByteArray K = sha256Hash(S.toBigEndianBytes());
@@ -402,7 +402,7 @@ public:
 
             // S = B**(a + ux) % n
             //   = (A * g**x)%n
-            const QBigInt S = ( m_A * QBigInt(m_g).modExp(x, m_N)) % m_N;
+            const QBigInt S = ( m_A * QBigInt(m_g).powm(x, m_N)) % m_N;
 
             //  K = SHA256(S)
             const QByteArray K = sha256Hash(S.toBigEndianBytes());

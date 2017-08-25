@@ -14,7 +14,7 @@ Parameters dsaParamGen(int bitsN, int bitsL)
     // Derive g, a number whose multiplicative order modulo p is q.
     const QBigInt r = (p - QBigInt(1)) / q;
     while(true) {
-        g = h.modExp(r,p);
+        g = h.powm(r,p);
         if (g > QBigInt::one()) {
             break;
         }
@@ -42,7 +42,7 @@ KeyPair dsaKeyGen(const Parameters & param)
         x = QBigInt::fromBigEndianBytes(qossl::randomBytes(numBytes)) % q;
     } while (x.isZero()); // Unlikely.
 
-    const QBigInt y = g.modExp(x,p);
+    const QBigInt y = g.powm(x,p);
 
     KeyPair ret;
     ret.first.param = param;
@@ -69,7 +69,7 @@ Signature signHash(const PrivKey & key, const QBigInt & Hm)
            continue;
        }
 
-       const QBigInt r = g.modExp(k,p) % q;
+       const QBigInt r = g.powm(k,p) % q;
        if (r.isZero()){
            continue;  // Also unlikely.
        }
@@ -111,7 +111,7 @@ bool verifyMessageSignature(const PubKey & key, const Signature & sig, const QBi
     const QBigInt w = QBigInt::invmod(s,q);
     const QBigInt u1 = (Hm * w) % q;
     const QBigInt u2 = (r * w) % q;
-    const QBigInt v = ( ( g.modExp(u1,p) * y.modExp(u2,p) ) % p ) % q;
+    const QBigInt v = ( ( g.powm(u1,p) * y.powm(u2,p) ) % p ) % q;
 
     return v == r;
 }

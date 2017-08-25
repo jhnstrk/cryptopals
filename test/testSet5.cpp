@@ -108,7 +108,7 @@ void TestSet5::testChallenge33_2()
     "d6b504a77f4dc7",16);
 
     // Now generate "A", which is "g" raised to the "a" power mod p --- A = (g**a) % p.
-    QBigInt A = g.modExp(a,p);
+    QBigInt A = g.powm(a,p);
 
     // Do the same for "b" and "B".
     QBigInt b = randomValue(p);
@@ -120,14 +120,14 @@ void TestSet5::testChallenge33_2()
     "0da1a9033e58f582004625426a5d384dc579b573df8a3613e524299e23252b17d0f7734866"
     "f7784832e68bf2",16);
 
-    QBigInt B = g.modExp(b,p);
+    QBigInt B = g.powm(b,p);
 
     // "A" and "B" are public keys. Generate a session key with them;
     // set "s" to "B" raised to the "a" power mod p --- s = (B**a) % p.
-    QBigInt s = B.modExp(a,p);
+    QBigInt s = B.powm(a,p);
 
     // Do the same with A**b, check that you come up with the same "s".
-    QBigInt s_a = A.modExp(b,p);
+    QBigInt s_a = A.powm(b,p);
 
     QCOMPARE( s.toString(16), s_a.toString(16) );
 
@@ -194,14 +194,14 @@ namespace Challenge34 {
     void Alice::sendDHParam(IBob &b)
     {
         m_a = randomValue(m_p);  // Private key
-        m_A = m_g.modExp(m_a,m_p);  // Public key
+        m_A = m_g.powm(m_a,m_p);  // Public key
         b.receiveDHParam(m_p,m_g,m_A);
     }
 
     void Alice::receivePeerPubKey(const QBigInt &B)
     {
         m_B = B;
-        m_s = qossl::Sha1::hash(m_B.modExp(m_a,m_p).toBigEndianBytes());
+        m_s = qossl::Sha1::hash(m_B.powm(m_a,m_p).toBigEndianBytes());
         m_s = m_s.left(qossl::AesBlockSize);
     }
 
@@ -223,9 +223,9 @@ namespace Challenge34 {
         m_A = A;
 
         m_b = randomValue(m_p);  // Private key
-        m_B = m_g.modExp(m_b,m_p);  // Public key
+        m_B = m_g.powm(m_b,m_p);  // Public key
 
-        m_s = qossl::Sha1::hash(m_A.modExp(m_b,m_p).toBigEndianBytes());
+        m_s = qossl::Sha1::hash(m_A.powm(m_b,m_p).toBigEndianBytes());
         m_s = m_s.left(qossl::AesBlockSize);
     }
 
@@ -353,7 +353,7 @@ namespace Challenge35 {
         void sendDHParam(IBob & b) Q_DECL_OVERRIDE
         {
             m_a = randomValue(m_p);  // Private key
-            m_A = m_g.modExp(m_a,m_p);  // Public key
+            m_A = m_g.powm(m_a,m_p);  // Public key
             b.receiveDHParam(m_p,m_g);
         }
 
@@ -367,7 +367,7 @@ namespace Challenge35 {
         virtual void receivePeerPubKey(const QBigInt & B) Q_DECL_OVERRIDE
         {
             m_B = B;
-            m_s = qossl::Sha1::hash(m_B.modExp(m_a,m_p).toBigEndianBytes());
+            m_s = qossl::Sha1::hash(m_B.powm(m_a,m_p).toBigEndianBytes());
             m_s = m_s.left(qossl::AesBlockSize);
             qDebug() << "Alice key" << m_s << m_B;
         }
@@ -403,13 +403,13 @@ namespace Challenge35 {
             m_g = g;
 
             m_b = randomValue(m_p);  // Private key
-            m_B = m_g.modExp(m_b,m_p);  // Public key
+            m_B = m_g.powm(m_b,m_p);  // Public key
         }
 
         virtual void receivePeerPubKey(const QBigInt & A) Q_DECL_OVERRIDE
         {
             m_A = A;
-            m_s = qossl::Sha1::hash(m_A.modExp(m_b,m_p).toBigEndianBytes());
+            m_s = qossl::Sha1::hash(m_A.powm(m_b,m_p).toBigEndianBytes());
             m_s = m_s.left(qossl::AesBlockSize);
             qDebug () << "Bob key" << m_s << m_A;
         }

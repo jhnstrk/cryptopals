@@ -31,6 +31,8 @@ private slots:
     void testNthRoot_data();
     void testNthRoot();
 
+    void testBitWiseOps();
+
     void testMetaType();
     void testDataStream();
 };

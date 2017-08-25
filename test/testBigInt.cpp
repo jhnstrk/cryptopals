@@ -180,17 +180,17 @@ void TestBigInt::testBasicOperators()
 
     qDebug() << "pow";
     test = QBigInt(3);
-    QCOMPARE(test.exp(QBigInt(4)), QBigInt(3*3*3*3));
-    QCOMPARE(QBigInt(2).exp(QBigInt(31)), QBigInt(quint64(1) << 31));
+    QCOMPARE(test.pow(QBigInt(4)), QBigInt(3*3*3*3));
+    QCOMPARE(QBigInt(2).pow(QBigInt(31)), QBigInt(quint64(1) << 31));
 
-    qDebug() << "modExp";
+    qDebug() << "powm";
     test = QBigInt(3);
-    QCOMPARE(test.modExp(QBigInt(4), QBigInt(13)), QBigInt((3*3*3*3) % 13));
-    QCOMPARE(QBigInt(2).modExp(QBigInt(31), QBigInt(13)), QBigInt((quint64(1) << 31) % 13));
+    QCOMPARE(test.powm(QBigInt(4), QBigInt(13)), QBigInt((3*3*3*3) % 13));
+    QCOMPARE(QBigInt(2).powm(QBigInt(31), QBigInt(13)), QBigInt((quint64(1) << 31) % 13));
 
     // Example from wikipedia
     test = QBigInt(4);
-    QCOMPARE(test.modExp(QBigInt(13), QBigInt(497)), QBigInt(445));
+    QCOMPARE(test.powm(QBigInt(13), QBigInt(497)), QBigInt(445));
 }
 
 void TestBigInt::testConstructors()
@@ -390,7 +390,7 @@ void TestBigInt::testDivide()
     const QBigInt quotientA = QBigInt::fromString(quotient,16);
     const QBigInt remainderA = QBigInt::fromString(remainder,16);
 
-    QPair< QBigInt, QBigInt > result = QBigInt::div(anum,aden);
+    QPair< QBigInt, QBigInt > result = QBigInt::divRem(anum,aden);
 
     QCOMPARE( result.first, quotientA );
     QCOMPARE( result.second, remainderA );
@@ -474,6 +474,27 @@ void TestBigInt::testNthRoot()
     QPair<QBigInt,QBigInt> actual = x.nthRootRem(n);
     QCOMPARE(actual.first, root);
     QCOMPARE(actual.second, rem);
+}
+
+void TestBigInt::testBitWiseOps()
+{
+    QCOMPARE( QBigInt::zero() & QBigInt::zero(), QBigInt::zero() );
+    QCOMPARE( QBigInt::zero() | QBigInt::zero(), QBigInt::zero() );
+    QCOMPARE( QBigInt::zero() ^ QBigInt::zero(), QBigInt::zero() );
+
+    QCOMPARE( QBigInt::one() & QBigInt::zero(), QBigInt::zero() );
+    QCOMPARE( QBigInt::one() | QBigInt::zero(), QBigInt::one() );
+    QCOMPARE( QBigInt::one() ^ QBigInt::zero(), QBigInt::one() );
+
+    QCOMPARE( QBigInt::zero() & QBigInt::one(), QBigInt::zero() );
+    QCOMPARE( QBigInt::zero() | QBigInt::one(), QBigInt::one() );
+    QCOMPARE( QBigInt::zero() ^ QBigInt::one(), QBigInt::one() );
+
+    const QBigInt a = QBigInt::fromString("f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0",16);
+    const QBigInt b = QBigInt::fromString(           "fff0f0f0f0f0f0f0fff",16);
+    QCOMPARE( a & b, QBigInt::fromString(             "f000000000000000f0",16) );
+    QCOMPARE( a | b, QBigInt::fromString( "f0f0f0f0f0ffffffffffffffffffff",16) );
+    QCOMPARE( a ^ b, QBigInt::fromString( "f0f0f0f0f0ff0fffffffffffffff0f",16) );
 }
 
 void TestBigInt::testMetaType()

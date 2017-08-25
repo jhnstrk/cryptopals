@@ -53,6 +53,8 @@ public:
 
     inline QBigInt & operator++() { return this->operator+=(1); }
     inline QBigInt & operator--() { return this->operator-=(1); }
+    inline QBigInt operator++(int) { QBigInt tmp(*this); this->operator ++(); return tmp; }
+    inline QBigInt operator--(int) { QBigInt tmp(*this); this->operator --(); return tmp; }
 
     QBigInt & operator+=(const QBigInt & other);
     QBigInt & operator-=(const QBigInt & other);
@@ -63,26 +65,33 @@ public:
     QBigInt & operator/=(const WordType v);
     QBigInt & operator*=(const WordType v);
     QBigInt & operator*=(const QBigInt & other);
-    QBigInt & div(const WordType value, WordType &r);
 
-    inline static QBigInt zero() { return QBigInt(WordType(0)); }
-    inline static QBigInt one() { return QBigInt(WordType(1)); }
-    inline static QBigInt minusOne() { return QBigInt(WordType(1)).negate(); }
+    QBigInt & operator|=(const QBigInt & other);
+    QBigInt & operator&=(const QBigInt & other);
+    QBigInt & operator^=(const QBigInt & other);
+
+    QBigInt & divRem(const WordType value, WordType &r);
+
+    inline static QBigInt zero() { return QBigInt(0u); }
+    inline static QBigInt one() { return QBigInt(1u); }
+    inline static QBigInt minusOne() { return QBigInt(1u).negate(); }
 
     inline unsigned int flags() const { return m_flags; }
     inline void setFlags(unsigned int f) { m_flags = f; }
 
     //! Return (quotient, remainder)
-    static QPair<QBigInt,QBigInt> div(const QBigInt & a, const QBigInt & b);
+    static QPair<QBigInt,QBigInt> divRem(const QBigInt & a, const QBigInt & b);
 
     //! Raise to power p
-    QBigInt exp(const QBigInt & p) const;
+    QBigInt pow(const QBigInt & p) const;
 
     //! this to power p, mod m
-    QBigInt modExp(const QBigInt & p, const QBigInt & m) const;
+    QBigInt powm(const QBigInt & p, const QBigInt & m) const;
 
     //! Return value cast to integer.
-    //  @return zero if this is not valid.
+    //  @return current value cast to 64-bits.
+    //   Will zero if this is not valid.
+    //   Or the lower 64-bits if this is larger than the range of return type.
     qint64 toLongLong() const;
     quint64 toULongLong() const;
 
@@ -96,9 +105,9 @@ public:
 private:
     explicit QBigInt(const DataType& d, bool sign);
     friend bool operator<(const QBigInt &a, const QBigInt &b);
-    friend QPair<QBigInt,QBigInt> div(const QBigInt & a, const QBigInt & b);
+    friend QPair<QBigInt,QBigInt> divRem(const QBigInt & a, const QBigInt & b);
 
-    void shrink(); // Remove trailing zeros from d.
+    void remove_leading_zeros(); // Remove trailing zeros from d.
 
     // Follow openSsl and be little endian: least sig first.
     DataType m_d;
@@ -112,6 +121,9 @@ QBigInt operator-(const QBigInt & a, const QBigInt & b);
 QBigInt operator*(const QBigInt & a, const QBigInt & b);
 QBigInt operator/(const QBigInt & a, const QBigInt & b);
 QBigInt operator%(const QBigInt & a, const QBigInt & b);
+QBigInt operator|(const QBigInt & a, const QBigInt & b);
+QBigInt operator&(const QBigInt & a, const QBigInt & b);
+QBigInt operator^(const QBigInt & a, const QBigInt & b);
 
 // Binary QBigInt, Word operators
 QBigInt operator+(const QBigInt & a, const QBigInt::WordType v);
@@ -120,9 +132,10 @@ QBigInt operator/(const QBigInt & a, const QBigInt::WordType v);
 QBigInt operator*(const QBigInt & a, const QBigInt::WordType v);
 QBigInt operator%(const QBigInt & a, const QBigInt::WordType v);
 
-
-
+// Negate.
 QBigInt operator-(const QBigInt & a);
+
+// Bit shift
 QBigInt operator<<(const QBigInt &a, unsigned int n);
 QBigInt operator>>(const QBigInt &a, unsigned int n);
 

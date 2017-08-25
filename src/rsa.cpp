@@ -5,11 +5,11 @@
 namespace Rsa {
 
 QBigInt encrypt(const Rsa::PubKey &key, const QBigInt &m) {
-    return m.modExp(key.e,key.n);
+    return m.powm(key.e,key.n);
 }
 
 QBigInt decrypt(const PrivKey &key, const QBigInt &c) {
-    return c.modExp(key.d,key.n);
+    return c.powm(key.d,key.n);
 }
 
 KeyPair rsaKeyGen(int bits) {
