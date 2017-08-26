@@ -12,6 +12,7 @@ set( ${PROJECT_NAME}_HEADERS_MOC
   testSet5_rsa.h
   testSet6.h
   testSet6_dsa.h
+  testSet6_bleichenbacher.h
   testBigInt.h
   )
 
@@ -30,6 +31,7 @@ set( ${PROJECT_NAME}_MAIN_SOURCES
   testSet5_rsa.cpp
   testSet6.cpp
   testSet6_dsa.cpp
+  testSet6_bleichenbacher.cpp
   testBigInt.cpp
   )
 
