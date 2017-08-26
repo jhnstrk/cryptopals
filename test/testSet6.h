@@ -14,4 +14,9 @@ private slots:
 
     // Rsa - Bleichenbacher's e=3 RSA Attack
     void testChallenge42();
+    
+    // For 43-45 see DSA
+    
+    // Rsa parity oracle.
+    void testChallenge46();
 };

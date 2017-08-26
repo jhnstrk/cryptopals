@@ -194,3 +194,76 @@ void TestSet6::testChallenge42()
 
     qDebug() << "Fake signature is good"; //if we got here.
 }
+
+namespace {
+    class ParityOracle {
+    public:
+        ParityOracle() {
+            Rsa::KeyPair keys = Rsa::rsaKeyGen(1024);
+            m_privKey = keys.second;
+            m_pubKey = keys.first;
+        }
+
+        bool isOdd(const QBigInt & enc) {
+            const QBigInt dec = Rsa::decrypt(m_privKey,enc);
+            return dec.testBit(0);
+        }
+
+        const Rsa::PubKey & pubKey() const { return m_pubKey; }
+    private:
+        Rsa::PrivKey m_privKey;
+        Rsa::PubKey m_pubKey;
+    };
+
+}
+void TestSet6::testChallenge46()
+{
+    const QByteArray message =
+    QByteArray::fromBase64(
+        "VGhhdCdzIHdoeSBJIGZvdW5kIHlvdSBkb24ndCBwbGF5IGFyb3VuZCB3aXRoI"
+        "HRoZSBGdW5reSBDb2xkIE1lZGluYQ==");
+
+    ParityOracle oracle;
+
+    const QBigInt enc = Rsa::encrypt(oracle.pubKey(), QBigInt::fromBigEndianBytes(message));
+
+    // 2**e % n;
+    const QBigInt enc2 = QBigInt(2).powm(oracle.pubKey().e, oracle.pubKey().n);
+
+    QBigInt encMult = enc;
+    const int itCount = oracle.pubKey().n.highBitPosition();
+
+    const int shift = (((itCount + 7)/8)*8);
+    QBigInt nb = oracle.pubKey().n << shift;
+    QBigInt ubound = nb;
+    QBigInt lbound = QBigInt::zero();
+
+    for (int i=0; i<itCount; ++i){
+        encMult *= enc2; // Times 2.
+        encMult = encMult % oracle.pubKey().n;
+        nb >>= 1;
+
+        if (oracle.isOdd(encMult) ) {
+            lbound += nb;
+        } else {
+            ubound -= nb;
+        }
+        if (i % 32 == 0)
+        {
+            // "Hollywood Style"
+            qDebug() << "u" << (ubound >> shift).toBigEndianBytes();
+        }
+    }
+
+    ubound >>= shift;
+    lbound >>= shift;
+    qDebug() << (ubound).toBigEndianBytes();
+    qDebug() << (lbound).toBigEndianBytes();
+
+    const QBigInt result = ubound;
+
+    qDebug() << "Final:" << ubound.toBigEndianBytes();
+
+    QCOMPARE(result.toBigEndianBytes() , message);
+    QVERIFY(ubound >= lbound);
+}
