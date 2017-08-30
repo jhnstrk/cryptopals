@@ -15,7 +15,9 @@ JDS_ADD_TEST(TestSet6_bleichenbacher)
 namespace {
     class Pkcs1_Oracle {
     public:
-        Pkcs1_Oracle() {
+        Pkcs1_Oracle() :
+        m_testCount(0)
+        {
             if (m_fixed) {
                 m_privKey.d = QBigInt::fromString("849ada64ffd1056e60427d6479e733f10b57cf920546dda7c0839f67602728fb",16);
                 m_pubKey.e = QBigInt(3);
@@ -36,6 +38,7 @@ namespace {
 
         // The oracle function... Return true if encrypted message input is padded ok.
         bool test(const QBigInt & enc) const {
+            ++m_testCount;
             const QBigInt dec = Rsa::decrypt(m_privKey,enc);
             return this->isPaddingOk(dec);
         }
@@ -72,8 +75,30 @@ namespace {
             return QBigInt::fromBigEndianBytes( messageBytes );
         }
 
+        static QBigInt pkcs1_unpad(const QBigInt & padded, const int len) {
+            const QByteArray paddedBytes = padded.toBigEndianBytes();
+            if (paddedBytes.size() != (len - 1)) {
+                qWarning() << "Bad padding (len)";
+                return QBigInt();
+            }
+            if (paddedBytes.at(0) != (char)0x02) {
+                qWarning() << "Bad padding (0x02 byte)";
+                return QBigInt();
+            }
+            const int ix = paddedBytes.indexOf((char)0x0);
+            if (ix == -1) {
+                qWarning() << "Bad padding (0x00 byte)";
+                return QBigInt();
+            }
+            return QBigInt::fromBigEndianBytes(paddedBytes.mid(ix+1));
+        }
+
         QBigInt pkcs1_pad(const QBigInt & message) const {
             return pkcs1_pad(message,m_keyLenBytes);
+        }
+
+        QBigInt pkcs1_unpad(const QBigInt & padded) const {
+            return pkcs1_unpad(padded,m_keyLenBytes);
         }
 
         QBigInt padAndEncrypt(const QBigInt & m) const {
@@ -88,14 +113,19 @@ namespace {
 
         // Debugging: All randomness removed.
         bool isFixed() const { return m_fixed; }
+
+        //! The number of times the oracle function has been called.
+        quint64 testCount() const { return m_testCount; }
+
     private:
         static const bool m_fixed;
+        mutable quint64 m_testCount;
         int m_keyLenBytes;
         Rsa::PrivKey m_privKey;
         Rsa::PubKey m_pubKey;
     };
 
-    const bool Pkcs1_Oracle::m_fixed = true;
+    const bool Pkcs1_Oracle::m_fixed = false;
 
     struct Interval {
         Interval(){}
@@ -231,13 +261,12 @@ namespace {
 
             QBigInt s1 = divRoundUp(n,m_threeB);
 
-            for (int i=0; i<0xffff; ++i) {
+            for (int i=0;  ; ++s1, ++i) {
                 QBigInt c = (c0 * s1.powm(e,n)) % n;
                 if (m_oracle.test(c)) {
                     return s1;
                 }
-                ++s1;
-                if (i%1024 == 0) {
+                if (i%0x1000 == 0) {
                     qDebug() << "Searching for s1" << i;
                 }
             }
@@ -255,7 +284,7 @@ namespace {
                 if (m_oracle.test(c)) {
                     return si;
                 }
-                if (si%1024 == 0) {
+                if (si%0x1000 == 0) {
                     qDebug() << "Searching for si (2b)" << si.toString(16);
                 }
             }
@@ -306,63 +335,33 @@ namespace {
                 const QBigInt & b = M_i_1.high;
                 const QBigInt r_min = divRoundUp(a*s_i - threeB + 1, n);
                 const QBigInt r_max = divRoundDown(b*s_i - twoB, n);
-
-                const DivRemType a1_min = QBigInt::divRem(divRoundUp(twoB + r_min*n, s_i), n);
-                const DivRemType a1_max = QBigInt::divRem(divRoundUp(twoB + r_max*n, s_i), n);
-
-                const DivRemType b1_min = QBigInt::divRem(divRoundDown(threeB - 1 + r_min*n, s_i),n);
-                const DivRemType b1_max = QBigInt::divRem(divRoundDown(threeB - 1 + r_max*n, s_i),n);
-
-                const bool a1_wrapped = a1_min.first != a1_max.first;
-                const bool b1_wrapped = b1_min.first != b1_max.first;
-
-                QVector<QBigInt> addRn;
-                if (a1_wrapped) {
-                    // There is a value of rn for which (2B + rn) /s_i == n -  1
-                    //  => rn = n - s_i - 2B;
-                    addRn.append(n*s_i - s_i - twoB);
-                    addRn.append(n*s_i - twoB);
+                qDebug() << "r_min" << r_min;
+                qDebug() << "r_max" << r_max;
+                qDebug() << "a" << a;
+                qDebug() << "b" << b;
+                if (r_min > r_max) {
+                    qDebug() << "Interval collapsed";
+                    continue;
                 }
-                if (b1_wrapped) {
-                    // There is a value of rn for which (3B - 1 + rn) /s_i == n -  1
-                    //  => rn = n s_i - s_i + 1 - 3B;
-                    addRn.append(n*s_i - s_i + 1 - threeB);
-                    addRn.append(n*s_i + 1 - threeB);
-                }
-                {
-                    const QBigInt an = std::max(a,a1_min.second);
-                    const QBigInt bn = std::min(b,b1_max.second);
+                for (QBigInt r = r_min; r <= r_max; ++r) {
+                    const QBigInt a1 = divRoundUp(twoB + r*n, s_i) % n;
+                    const QBigInt b1 = divRoundDown(threeB - 1 + r*n, s_i) % n;
+
+                    const QBigInt an = std::max(a,a1);
+                    const QBigInt bn = std::min(b,b1);
 
                     const Interval i1(an,bn);
-                    qDebug() << "r_max" << r_max;
-                    qDebug() << "r_min" << r_min;
-                    qDebug() << "a1_min" << a1_min;
-                    qDebug() << "a1_max" << a1_max;
-                    qDebug() << "b1_min" << b1_min;
-                    qDebug() << "b1_max" << b1_max;
-                    qDebug() << "a" << a;
-                    qDebug() << "b" << b;
+                    qDebug() << "r" << r;
+                    qDebug() << "a1" << a1;
+                    qDebug() << "b1" << b1;
                     qDebug() << "i1" << i1;
                     if (an > bn) {
                         qWarning() << "Fail an > bn" << an << bn;
                         exit(1);
-                    }                    mergeInterval(ret,i1);
+                    }
+                    mergeInterval(ret,i1);
                     qDebug() << "ret" << ret;
                 }
-
-                if (!addRn.isEmpty()) {
-                    qDebug() << "Wrapped";
-                }
-                foreach (const QBigInt & rn, addRn) {
-                    const QBigInt a1 = divRoundUp(twoB + rn, s_i) % n;
-                    const QBigInt b1 = divRoundDown(threeB - 1 + rn, s_i) %n;
-                    const QBigInt an = std::max(a,a1);
-                    const QBigInt bn = std::min(b,b1);
-
-                    Interval i2(an,bn);
-                    mergeInterval(ret,i2);
-                }
-
             }
 
             return ret;
@@ -422,10 +421,7 @@ namespace {
         {
             const QPair<QBigInt,QBigInt> qr = QBigInt::divRem(a,b);  // a/b
             QBigInt s1 = qr.first;
-            // Truncation; rounds down.
-            // if (!qr.second.isZero()) {
-                //--s1;
-            // }
+            // Truncation; rounds down anyway for positive integers.
             return s1;
         }
 
@@ -471,9 +467,14 @@ void TestSet6_bleichenbacher::testChallenge47()
     const QBigInt c0 = oracle.padAndEncrypt(m0);
 
     Bleichenbacher attacker(oracle);
-    QBigInt recovered = attacker.findM(c0);
+    const QBigInt recoveredPadded = attacker.findM(c0);
 
-    QVERIFY(recovered == m0);
-    
+    QVERIFY(oracle.isPaddingOk(recoveredPadded));
+
+    const QBigInt recoveredPlain = oracle.pkcs1_unpad(recoveredPadded);
+
+    QVERIFY(recoveredPlain == m0);
+    qDebug() << "Recovered message:" << recoveredPlain.toBigEndianBytes()
+             << "in" << oracle.testCount() << "calls to the oracle.";
+
 }
-

@@ -34,12 +34,27 @@ int main(int argc, char * argv[])
     QCoreApplication app(argc, argv);
     QStringList testNames;
 
-    if (app.arguments().size() >= 2) {
-        testNames = app.arguments().mid(1);
-        if (testNames.at(0) == "ALL") {
+    QStringList qtestArgs; // Anything after '--'
+
+    const QStringList appArgs = app.arguments();
+
+    const QString arg0 = appArgs.isEmpty() ? "Unknown" : appArgs.at(0);
+
+    if (appArgs.size() >= 2) {
+        const int ixMM = appArgs.indexOf("--");
+        if ( ixMM != -1) {
+            qtestArgs = appArgs.mid(ixMM + 1);
+            testNames = appArgs.mid(1,ixMM - 1);
+        } else {
+            testNames = appArgs.mid(1);
+        }
+
+        if ((!testNames.isEmpty()) && (testNames.at(0) == "ALL")) {
             testNames = TestObjs.keys();
         }
-    } else {
+    }
+
+    if (testNames.isEmpty()){
         const QStringList keys = TestObjs.keys();
         for (int i=0; i<keys.size(); ++i)
         {
@@ -66,8 +81,6 @@ int main(int argc, char * argv[])
         }
     }
 
-    //app.setAttribute(Qt::AA_Use96Dpi, true);
-
     int ret = 0;
 
     foreach (const QString & testName, testNames) {
@@ -77,7 +90,21 @@ int main(int argc, char * argv[])
             return 1;
         }
         QScopedPointer<QObject>  testObject(ptr->create());
-        ret += QTest::qExec(testObject.data(), 1, argv);
+
+        std::vector<std::string> args;
+        args.push_back(arg0.toStdString());
+        foreach(const QString & item, qtestArgs) {
+            args.push_back(item.toStdString());
+        }
+
+        std::vector<char *> argvV;
+        for (std::vector<std::string>::const_iterator it = args.begin();
+             it != args.end(); ++it)
+        {
+            argvV.push_back((char*)it->c_str());
+        }
+
+        ret += QTest::qExec(testObject.data(), (int)argvV.size(), &(argvV[0]));
     }
 
     return ret;
