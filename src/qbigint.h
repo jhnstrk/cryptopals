@@ -157,15 +157,20 @@ inline bool operator!=(const QBigInt & a, const QBigInt::WordType b) {
     return !(a == b);
 }
 
-template <typename T>
-bool operator==(const QBigInt & a, const T b) {
-    return a == QBigInt(b);
-}
+QBigInt operator*(const QBigInt & a, const QBigInt::WordType v);
 
-template <typename T>
-bool operator!=(const QBigInt & a, const T b) {
-    return !(a == b);
-}
+template <typename T> QBigInt operator+(const QBigInt & a, const T & b) { return a + QBigInt(b); }
+template <typename T> QBigInt operator+(const T & a, const QBigInt & b) { return QBigInt(a) + b; }
+template <typename T> QBigInt operator-(const QBigInt & a, const T & b) { return a - QBigInt(b); }
+template <typename T> QBigInt operator-(const T & a, const QBigInt & b) { return QBigInt(a) - b; }
+template <typename T> QBigInt operator*(const QBigInt & a, const T & b) { return a * QBigInt(b); }
+template <typename T> QBigInt operator*(const T & a, const QBigInt & b) { return QBigInt(a) * b; }
+template <typename T> QBigInt operator/(const QBigInt & a, const T & b) { return a / QBigInt(b); }
+template <typename T> QBigInt operator/(const T & a, const QBigInt & b) { return QBigInt(a) / b; }
+
+template <typename T>  bool operator==(const QBigInt & a, const T & b) {    return a == QBigInt(b); }
+
+template <typename T> bool operator!=(const QBigInt & a, const T & b) {     return !(a == b); }
 
 QDebug operator<<(QDebug, const QBigInt & x);
 

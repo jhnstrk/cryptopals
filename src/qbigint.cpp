@@ -1098,7 +1098,7 @@ QBigInt operator>>(const QBigInt &a, unsigned int n)
 
 QDebug operator<<(QDebug dbg, const QBigInt &x)
 {
-    dbg << x.toString();
+    dbg << x.toString(16);
     return dbg;
 }
 
