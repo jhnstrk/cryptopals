@@ -619,7 +619,7 @@ namespace {
     };
 }
 
-QByteArray primeGen(int bits, const QByteArray &addbytes)
+QByteArray primeGen(int bits, bool safeBool, const QByteArray &addbytes)
 {
     if (bits <= 0) {
         qDebug() << "Number of bits requested is <=0" << bits;
@@ -639,7 +639,7 @@ QByteArray primeGen(int bits, const QByteArray &addbytes)
         }
     }
 
-    const int safe = 0;
+    const int safe = safeBool ? 1: 0;
     // If add is not NULL, the prime will fulfill the condition
     // p % add == rem (p % add == 1 if rem == NULL) in order to suit
     // a given generator.

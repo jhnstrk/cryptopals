@@ -12,6 +12,12 @@ private slots:
     // Basic tests of padding etc.
     void testPaddingOracle();
 
+    // test the Interval merging
+    void testIntervalOps();
+
     // Bleichenbacher's PKCS 1.5 Padding Oracle (Simple Case)
     void testChallenge47();
+
+    // Bleichenbacher's PKCS 1.5 Padding Oracle (Complete Case)
+    void testChallenge48();
 };

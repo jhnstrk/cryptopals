@@ -78,7 +78,8 @@ namespace qossl {
     
     // Find a prime with n-bits that optionally also satisfies
     // p%add = 1 -> i.e. p-1 is a multiple of add.
-    QByteArray primeGen(int bits, const QByteArray & add = QByteArray());
+    // Also, if safe is true, the prime, p, will be chosen so that (p-1)/2 is also prime
+    QByteArray primeGen(int bits, bool safe = true, const QByteArray & add = QByteArray());
 
     //! Generate len cryptographic random bytes.
     QByteArray randomBytes(int len);

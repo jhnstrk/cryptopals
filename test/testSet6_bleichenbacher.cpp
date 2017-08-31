@@ -15,7 +15,7 @@ JDS_ADD_TEST(TestSet6_bleichenbacher)
 namespace {
     class Pkcs1_Oracle {
     public:
-        Pkcs1_Oracle() :
+        Pkcs1_Oracle(const int modulusLenBits = 256) :
         m_testCount(0)
         {
             if (m_fixed) {
@@ -24,7 +24,7 @@ namespace {
                 m_pubKey.n = QBigInt::fromString("c6e847977fb988259063bc16b6dacdeb5530dff9e1c6fe683e0c2494071ea9cb",16);
                 m_privKey.n = m_pubKey.n;
             }else {
-                Rsa::KeyPair keys = Rsa::rsaKeyGen(128);
+                Rsa::KeyPair keys = Rsa::rsaKeyGen(modulusLenBits/2);
                 m_privKey = keys.second;
                 m_pubKey = keys.first;
             }
@@ -137,6 +137,11 @@ namespace {
         QBigInt low,high;
     };
 
+    bool operator==(const Interval & a, const Interval & b) {
+        return (a.low == b.low) &&
+                (a.high == b.high);
+    }
+
     bool operator<(const Interval & a, const Interval & b) {
         if (a.low < b.low) {
             return true;
@@ -172,6 +177,47 @@ namespace {
             << item.high.toBigEndianBytes().toHex()
             << ']';
         return dbg.maybeSpace();
+    }
+
+    // Merge new interval with existing.
+    void mergeInterval(QVector<Interval> & M, const Interval & mi) {
+        if (M.isEmpty()) {
+            M.append( mi );
+            return;
+        }
+        // TODO: Use 'lower_bound' as starting point.
+        for (int i=0; i<M.size(); ++i) {
+            Interval & M_i(M[i]);
+            if (overlaps(mi, M_i)) {
+                if ((M_i.low <= mi.low) && (M_i.high >= mi.high)) {
+                    // New interval is contained in an existing one.
+                    return;
+                }
+
+                if (mi.low < M_i.low) {
+                    M_i.low = mi.low;
+                }
+                if (mi.high > M_i.high) {
+                    M_i.high = mi.high;
+                    QBigInt ubound;
+                    int numErase = 0;
+                    for (int j = i+1; j<M.size(); ++j) {
+                        if (M.at(j).low <= mi.high) {
+                            ++numErase;
+                            ubound = M.at(j).high;
+                        }
+                    }
+                    if (numErase != 0) {
+                        M_i.high = ubound;
+                        M.erase(M.begin() + i + 1, M.begin() + i + 1 + numErase);
+                    }
+                }
+                return;
+            } // if (overlaps)
+        }  // for
+
+        // If we got here, the new interval does not overlap an existing one.
+        M.insert(std::upper_bound(M.begin(), M.end(),mi), mi);
     }
 
     class Bleichenbacher {
@@ -367,46 +413,6 @@ namespace {
             return ret;
         }
 
-        void mergeInterval(QVector<Interval> & M, const Interval & mi) {
-            if (M.isEmpty()) {
-                M.append( mi );
-                return;
-            }
-            // TODO: Use 'lower_bound' as starting point.
-            for (int i=0; i<M.size(); ++i) {
-                Interval & M_i(M[i]);
-                if (overlaps(mi, M_i)) {
-                    if ((M_i.low <= mi.low) && (M_i.high >= mi.high)) {
-                        // New interval is contained in an existing one.
-                        return;
-                    }
-
-                    if (mi.low < M_i.low) {
-                        M_i.low = mi.low;
-                    }
-                    if (mi.high > M_i.high) {
-                        M_i.high = mi.high;
-                        QBigInt ubound;
-                        int numErase = 0;
-                        for (int j = i+1; j<M.size(); ++j) {
-                            if (M.at(j).low <= mi.high) {
-                                ++numErase;
-                                ubound = M.at(j).high;
-                            }
-                        }
-                        if (numErase != 0) {
-                            M_i.high = ubound;
-                            M.erase(M.begin() + i + 1, M.begin() + i + 1 + numErase);
-                            return;
-                        }
-                    }
-                }
-            }
-
-            // If we got here, the new interval does not overlap an existing one.
-            M.insert(std::upper_bound(M.begin(), M.end(),mi), mi);
-        }
-
         QBigInt divRoundUp(const QBigInt & a, const QBigInt & b)
         {
             const QPair<QBigInt,QBigInt> qr = QBigInt::divRem(a,b);  // a/b
@@ -458,6 +464,52 @@ void TestSet6_bleichenbacher::testPaddingOracle()
     QVERIFY(!oracle.test(QBigInt::fromString("3456789123123123123",16)));
 }
 
+void TestSet6_bleichenbacher::testIntervalOps()
+{
+    QVector<Interval> actual;
+    QVector<Interval> expected;
+
+    // Add to empty.
+    const Interval i1(QBigInt(0x40),QBigInt(0x50));
+    mergeInterval(actual, i1);
+    expected.push_back( i1);
+    QCOMPARE(actual, expected);
+
+    // Lower interval
+    const Interval i0(QBigInt(0x10),QBigInt(0x20));
+    mergeInterval(actual, i0);
+    expected.push_front( i0);
+    QCOMPARE(actual, expected);
+
+    // higher interval
+    const Interval i3(QBigInt(0x80),QBigInt(0x90));
+    mergeInterval(actual, i3);
+    expected.push_back( i3);
+    QCOMPARE(actual, expected);
+
+    // expands i1
+    const Interval i1_n(QBigInt(0x35),QBigInt(0x55));
+    mergeInterval(actual, i1_n);
+    expected[1] = i1_n;
+    QCOMPARE(actual, expected);
+
+    // Merges i1_n & i2
+    const Interval i12_n(QBigInt(0x40),QBigInt(0x85));
+    mergeInterval(actual, i12_n);
+    expected[1] = Interval(QBigInt(0x35),QBigInt(0x90));
+    expected.pop_back();
+    QCOMPARE(actual, expected);
+
+    // Merges 0 & 1
+    const Interval i01_n(QBigInt(0x20),QBigInt(0x35));
+    mergeInterval(actual, i01_n);
+    expected[0] = Interval(QBigInt(0x10),QBigInt(0x90));
+    expected.pop_back();
+    qDebug() << "actual  :" << actual;
+    qDebug() << "expected:" << expected;
+    QCOMPARE(actual, expected);
+}
+
 void TestSet6_bleichenbacher::testChallenge47()
 {
     Pkcs1_Oracle oracle;
@@ -476,5 +528,24 @@ void TestSet6_bleichenbacher::testChallenge47()
     QVERIFY(recoveredPlain == m0);
     qDebug() << "Recovered message:" << recoveredPlain.toBigEndianBytes()
              << "in" << oracle.testCount() << "calls to the oracle.";
+}
 
+void TestSet6_bleichenbacher::testChallenge48()
+{
+    Pkcs1_Oracle oracle(768);
+
+    const QByteArray m0Bytes = "For efficiency many popular crypto libraries (like OpenSSL, Java and .NET)";
+    const QBigInt m0 = QBigInt::fromBigEndianBytes(m0Bytes);
+    const QBigInt c0 = oracle.padAndEncrypt(m0);
+
+    Bleichenbacher attacker(oracle);
+    const QBigInt recoveredPadded = attacker.findM(c0);
+
+    QVERIFY(oracle.isPaddingOk(recoveredPadded));
+
+    const QBigInt recoveredPlain = oracle.pkcs1_unpad(recoveredPadded);
+
+    QVERIFY(recoveredPlain == m0);
+    qDebug() << "Recovered message:" << recoveredPlain.toBigEndianBytes()
+             << "in" << oracle.testCount() << "calls to the oracle.";
 }

@@ -8,7 +8,7 @@ namespace Dsa {
 Parameters dsaParamGen(int bitsN, int bitsL)
 {
     const QBigInt q = QBigInt::fromBigEndianBytes(qossl::primeGen(bitsN));
-    const QBigInt p = QBigInt::fromBigEndianBytes(qossl::primeGen(bitsL,q.toBigEndianBytes()));
+    const QBigInt p = QBigInt::fromBigEndianBytes(qossl::primeGen(bitsL,true,q.toBigEndianBytes()));
 
     QBigInt g;
     QBigInt h = QBigInt(2);
