@@ -161,7 +161,7 @@ namespace Challenge34 {
         }
         
         virtual ~Alice() {}
-        void sendDHParam(IBob & b) Q_DECL_OVERRIDE;
+        void sendDHParam(IBob & b);
         virtual void receivePeerPubKey(const QBigInt & B) Q_DECL_OVERRIDE;
 
         void sendEncryptedMessage(IBob & b);
@@ -350,7 +350,7 @@ namespace Challenge35 {
         }
 
         virtual ~Alice() {}
-        void sendDHParam(IBob & b) Q_DECL_OVERRIDE
+        void sendDHParam(IBob & b)
         {
             m_a = randomValue(m_p);  // Private key
             m_A = m_g.powm(m_a,m_p);  // Public key

@@ -10,12 +10,12 @@ namespace qossl {
     class RuntimeException : public QException {
     public:
         RuntimeException(const QByteArray & what = QByteArray()): m_what(what) {}
-        RuntimeException(const RuntimeException& other) : m_what(other.m_what) {}
+        RuntimeException(const RuntimeException& other) : m_what(other.whatBytes()) {}
         virtual ~RuntimeException() throw() {}
 
         virtual void raise() const Q_DECL_OVERRIDE { throw *this; }
         virtual QException *clone() const Q_DECL_OVERRIDE { return new RuntimeException(*this); }
-        virtual const char* what() const Q_DECL_OVERRIDE throw() { return m_what.constData(); }
+        virtual const char* what() const Q_DECL_NOEXCEPT Q_DECL_OVERRIDE  { return m_what.constData(); }
 
         const QByteArray & whatBytes() const throw() { return m_what; }
     private:
