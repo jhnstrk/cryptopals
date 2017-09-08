@@ -250,4 +250,52 @@ void TestSet7_CBC_MAC::testChallenge49_Part2()
     // By pre-pending the mac instead of appending.
 }
 
+void TestSet7_CBC_MAC::testChallenge50()
+{
+    const QByteArray test1 = "alert('MZA who was that?');\n";
+    const QByteArray key = "YELLOW SUBMARINE";
+    const QByteArray iv0 = QByteArray(qossl::AesBlockSize,0);
+
+    const QByteArray actual = cbcMac(test1,key,iv0);
+    const QByteArray expected = QByteArray::fromHex("296b8d7cb78a243dda4d0a61d33bbdd1");
+    QCOMPARE(actual.toHex(), expected.toHex());
+
+    QByteArray newCode = "alert('Ayo, the Wu is back!');\n";
+    // Objective: add padding to give a the same hash.
+    // This is AES, and we know the key, so we can do forward and reverse operations.
+    // Each AES block is c = AES_ECB(prev xor block); prev = c;
+
+    const int BSz = qossl::AesBlockSize;
+
+    newCode += "// "; // Comment line to keep browser happy
+    // Resize to whole blocks.
+    if ((newCode.size() % BSz) != 0) {
+        newCode += QByteArray(BSz - (newCode.size() % BSz), 'a');
+    }
+
+    // This is what (prev xor block) should be, in order to recover the hash.
+    const QByteArray lastBlock = qossl::aesEcbDecrypt(expected,key);
+
+    QByteArray desired = QByteArray(BSz,'a');
+    desired[desired.size() - 1] = 1;  // valid padding.
+    desired[desired.size() - 2] = '\n';  // Ends in a new line.
+
+    // Find what prevC should be such that prev xor desired => lastBlock.
+    const QByteArray prevC = qossl::aesEcbDecrypt(qossl::xorByteArray(desired,lastBlock),key);
+
+    // This is the actual value of prev.
+    const QByteArray cbc1 = qossl::aesCbcEncrypt(newCode,key,iv0).right(BSz);
+
+    // So we need a glue block equal to:
+    const QByteArray modLast = qossl::xorByteArray(prevC, cbc1);
+
+    newCode += modLast;  // Glue 1
+    newCode += desired;  // Glue 2
+
+    newCode.resize(newCode.size() -1); // Drop padding bytes.
+    //qDebug() << qossl::aesEcbEncrypt(qossl::xorByteArray(cbc1,modLast),key).toHex();
+    qDebug() << newCode;
+    QCOMPARE(cbcMac(newCode,key,iv0).toHex(),expected.toHex());
+}
+
 
