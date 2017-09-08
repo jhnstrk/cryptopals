@@ -132,5 +132,122 @@ void TestSet7_CBC_MAC::testChallenge49()
     QVERIFY(server.doTransaction(attackMsg));
 }
 
+namespace {
+
+struct Recipient{
+    Recipient(){}
+    Recipient(const QByteArray & name_, unsigned int amount_) : amount(amount_), name(name_) {}
+
+    unsigned int amount;
+    QByteArray name;
+};
+
+// V2: Fixed IV
+class BankingServer2 {
+public:
+    BankingServer2() :
+        m_key("yellow submarine"),
+        m_iv(QByteArray(qossl::AesBlockSize,0))
+    {}
+
+    // Parse and perform message.
+    // Message of form "message || MAC"
+    bool doTransaction(const QByteArray & message) {
+        // Need mac or it's invalid.
+        if (message.size() < qossl::AesBlockSize) {
+            return false;
+        }
+        const QByteArray mac = message.mid(message.size() - qossl::AesBlockSize, qossl::AesBlockSize);
+        const QByteArray content = message.left(message.size() - qossl::AesBlockSize);
+
+        const QByteArray expectedMac = cbcMac(content, m_key, m_iv);
+        if (expectedMac != mac) {
+            qWarning() << "Invalid Mac";
+            return false;
+        }
+
+        qDebug() << "Performing action" << content;
+        return true;
+    }
+
+    QByteArray key() const { return m_key; }
+private:
+    const QByteArray m_key;    // Private Key
+    const QByteArray m_iv;     // Private IV
+};
+
+class BankingClient2 {
+public:
+    BankingClient2(const QByteArray & user) :
+        m_key("yellow submarine"),
+        m_iv(QByteArray(qossl::AesBlockSize,0)),
+        m_userId(user)
+    {}
+
+    QByteArray createMessage(const QList<Recipient>& recipientList) const
+    {
+        QByteArrayList recipStrings;
+        foreach (const Recipient & it, recipientList) {
+            recipStrings.append(it.name + ":" + QByteArray::number(it.amount));
+        }
+        const QByteArray data = "from=" + m_userId + "&tx_list=" + recipStrings.join(';');
+
+        const QByteArray iv = qossl::randomBytes(qossl::AesBlockSize);
+        const QByteArray mac = cbcMac(data,m_key,m_iv);
+        return data + mac;
+    }
+
+private:
+    const QByteArray m_key;     // Private Key
+    const QByteArray m_iv;     // Private IV
+    const QByteArray m_userId;
+};
+}
+
+
+void TestSet7_CBC_MAC::testChallenge49_Part2()
+{
+    const BankingClient2 client("Alice");
+    const QList< Recipient > recips = { Recipient("Bob",100) , Recipient("Charles", 500) };
+    const QByteArray msg = client.createMessage(recips);
+
+    BankingServer2 server;
+    QVERIFY(server.doTransaction(msg));
+
+    const int BSz = qossl::AesBlockSize;
+
+    // Extract the components of the original message.
+    const QByteArray mac = msg.mid(msg.size() - BSz, BSz);
+    const QByteArray content = msg.left(msg.size() - BSz);
+
+    const BankingClient2 clientH("Hacker");
+
+    const QList< Recipient > fakelist = { Recipient("Boberrybob",1) , Recipient("AHacker", 1000000) };
+    const QByteArray msg1 = clientH.createMessage( fakelist );
+
+    // Block alignment: The target starts a new block.
+    // 0123456789abcdef0123456789abcdef
+    // from=Hacker&tx_list=Boberrybob:1;AHacker:1000000
+
+    // (iv xor b1)   -----
+    // Want to modify first block (b0) to give (b0')
+    // (Mac xor b0')  = (iv0 xor b0).  Then the next encryption will take the same value.
+    // So b0' = iv0 xor b0 xor Mac
+    // The iv0 is zero, so can be dropped.
+    // There'll be some garbage in the stream, but we can tolerate that if the server will.
+    const QByteArray firstBlock = msg1.left(BSz);
+    const QByteArray twister = qossl::xorByteArray(firstBlock, mac);
+
+    // Recompose the message with the glue and length extension.
+    const QByteArray restOfmsg1 = msg1.mid(BSz);
+    const QByteArray attackMsg = qossl::pkcs7Pad(content,BSz) + twister + restOfmsg1;
+
+    // Prove the server accepts it.
+    QVERIFY(server.doTransaction(attackMsg));
+
+    // How would you modify the protocol to prevent this?
+    // By including a message length in the message.
+    // By pre-pending the mac instead of appending.
+}
 
 

@@ -12,5 +12,5 @@ private slots:
     // CBC-MAC
     void testChallenge49_basic();
     void testChallenge49();
-
+    void testChallenge49_Part2();
 };
