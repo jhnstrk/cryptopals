@@ -250,6 +250,21 @@ void TestSet7_CBC_MAC::testChallenge49_Part2()
     // By pre-pending the mac instead of appending.
 }
 
+
+namespace {
+bool isPrintableAscii(const QByteArray & str)
+{
+    for (int j=0;j<str.size(); ++j) {
+        unsigned char ch = (unsigned char)str.at(j);
+        if ((ch > 126) || (ch == 0)){
+            return false;
+        }
+    }
+
+    return true;
+}
+
+}
 void TestSet7_CBC_MAC::testChallenge50()
 {
     const QByteArray test1 = "alert('MZA who was that?');\n";
@@ -267,7 +282,7 @@ void TestSet7_CBC_MAC::testChallenge50()
 
     const int BSz = qossl::AesBlockSize;
 
-    newCode += "// "; // Comment line to keep browser happy
+    newCode += "/*"; // Block comment start to keep browser happy
     // Resize to whole blocks.
     if ((newCode.size() % BSz) != 0) {
         newCode += QByteArray(BSz - (newCode.size() % BSz), 'a');
@@ -278,23 +293,52 @@ void TestSet7_CBC_MAC::testChallenge50()
 
     QByteArray desired = QByteArray(BSz,'a');
     desired[desired.size() - 1] = 1;  // valid padding.
-    desired[desired.size() - 2] = '\n';  // Ends in a new line.
+    desired[desired.size() - 2] = '\n';  // Ends in Ends */, new line.
+    desired[desired.size() - 3] = '/';
+    desired[desired.size() - 4] = '*';
 
-    // Find what prevC should be such that prev xor desired => lastBlock.
-    const QByteArray prevC = qossl::aesEcbDecrypt(qossl::xorByteArray(desired,lastBlock),key);
+    QByteArray modLast;
+    for (int i=0; i<1000000; ++i) {
+        if (i%8096 == 0) {
+            qDebug() << i;
+        }
 
-    // This is the actual value of prev.
-    const QByteArray cbc1 = qossl::aesCbcEncrypt(newCode,key,iv0).right(BSz);
+        // A counter, for forcing different glue bytes.
+        const QByteArray numStr = QByteArray::number(i);
+        for (int j=0; j<numStr.size(); ++j) {
+            desired[j] = numStr.at(j);
+        }
 
-    // So we need a glue block equal to:
-    const QByteArray modLast = qossl::xorByteArray(prevC, cbc1);
+        // Find what prevC should be such that prev xor desired => lastBlock.
+        const QByteArray prevC = qossl::aesEcbDecrypt(qossl::xorByteArray(desired,lastBlock),key);
 
+        // This is the actual value of prev.
+        const QByteArray cbc1 = qossl::aesCbcEncrypt(newCode,key,iv0).right(BSz);
+
+        // So we need a glue block equal to:
+        modLast = qossl::xorByteArray(prevC, cbc1);
+
+        // Check if it's going to be valid UTF-8.
+        if (isPrintableAscii(modLast)) {
+            break;
+        }
+    }
+    // We could check this and repeat, changing the padding slightly if it contains 'bad' characters.
     newCode += modLast;  // Glue 1
     newCode += desired;  // Glue 2
 
     newCode.resize(newCode.size() -1); // Drop padding bytes.
     //qDebug() << qossl::aesEcbEncrypt(qossl::xorByteArray(cbc1,modLast),key).toHex();
     qDebug() << newCode;
+
+    // Write file
+    if (false) {
+        QFile op("/tmp/op.js");
+        op.open(QFile::WriteOnly);
+        op.write(newCode);
+        op.close();
+    }
+
     QCOMPARE(cbcMac(newCode,key,iv0).toHex(),expected.toHex());
 }
 
