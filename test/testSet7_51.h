@@ -11,4 +11,7 @@ private slots:
 
     // Compression oracle, stream cipher.
     void testChallenge51();
+
+    // Compression oracle, block cipher (AES-CBC).
+    void testChallenge51_cbc();
 };
