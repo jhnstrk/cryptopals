@@ -15,6 +15,7 @@ set( ${PROJECT_NAME}_HEADERS_MOC
   testSet6_bleichenbacher.h
   testSet7_CBC_MAC.h
   testSet7_51.h
+  testSet7_52.h
   testBigInt.h
   )
 
@@ -36,6 +37,7 @@ set( ${PROJECT_NAME}_MAIN_SOURCES
   testSet6_bleichenbacher.cpp
   testSet7_CBC_MAC.cpp
   testSet7_51.cpp
+  testSet7_52.cpp
   testBigInt.cpp
   )
 
