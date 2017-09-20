@@ -12,4 +12,7 @@ private slots:
     // Iterated hash functions
     void testChallenge52();
 
+    // Kelsey and Schneier's Expandable Messages
+    void testChallenge53();
+
 };

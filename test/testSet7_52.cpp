@@ -10,6 +10,12 @@
 
 JDS_ADD_TEST(TestSet7_52)
 
+
+// Note: The AES-128 based hash below is crap.
+// -> Firstly its state is ridiculously small (16-bits).
+// -> Secondly, for some input (e.g. repeated text), the output is statistically
+//    very non-random. Certain hashes are far more common.
+
 namespace {
     QByteArray H0() {
         QByteArray ret;
@@ -20,11 +26,11 @@ namespace {
     }
 
     class MdHashBase {
+    public:
+        static const int BlockSizeBytes = qossl::AesBlockSize;
     protected:
         MdHashBase() : m_count(0) {}
         virtual ~MdHashBase() {}
-
-        static const int BlockSizeBytes = qossl::AesBlockSize;
 
         QByteArray finalize()
         {
@@ -74,6 +80,8 @@ namespace {
         }
 
         virtual void addBlock(const QByteArray &data, int offset) = 0;
+
+        QByteArray state() const { return m_state; }
     protected:
         QByteArray m_state;
         int m_count;
@@ -321,3 +329,185 @@ void TestSet7_52::testChallenge52()
 
     qDebug() << "Collision function called: " << cf.cfCount() << "times";
 }
+
+
+
+
+namespace Challenge53 {
+
+class CollisionFinder2 {
+
+public:
+    CollisionFinder2() : m_cfCount(0), m_padChar(0)
+    {}
+
+    struct Collision2 {
+        Collision2() : padLenBlocks(0){}
+        Collision2(const QByteArray & hIn_, const QByteArray & hOut_,
+                   const QByteArray & input1_,int numPadBlocks, const QByteArray & input2_ )
+                   :
+            hIn(hIn_),
+            hOut(hOut_),
+            input1(input1_),
+            padLenBlocks(numPadBlocks),
+            input2(input2_)
+        {}
+
+        QByteArray hIn;
+        QByteArray hOut;
+        QByteArray input1;
+        int padLenBlocks;
+        QByteArray input2;
+    };
+
+
+
+    Collision2 findCollision2(const QByteArray& hIn, const int numPadBlock)
+    {
+        ++m_cfCount;
+
+        // Hash dummy blocks.
+        const QByteArray hIn2 = dummyState(numPadBlock, hIn);
+
+        QHash< QByteArray ,QByteArray > tested1;
+        QHash< QByteArray ,QByteArray > tested2;
+        while(true) {
+            QByteArray sample = qossl::randomBytes(qossl::AesBlockSize);
+
+            const QByteArray hOut1 = MdHash16::iteration(sample,hIn);
+            if (tested2.contains(hOut1)) {
+                return Collision2(hIn, hOut1, sample, numPadBlock, tested2.value(hOut1));
+            } else {
+                tested1[hOut1] = sample;
+            }
+
+            const QByteArray hOut2 = MdHash16::iteration(sample,hIn2);
+            if (tested1.contains(hOut2)) {
+                return Collision2(hIn, hOut2, tested1.value(hOut2), numPadBlock, sample);
+            } else {
+                tested2[hOut2] = sample;
+            }
+        }
+    }
+
+    // Hashing dummy blocks
+    QByteArray dummyState(int blockCount, QByteArray h)
+    {
+        QByteArray padding(MdHash16::BlockSizeBytes, m_padChar);
+
+        for (int i=0; i<blockCount; ++i) {
+            h = MdHash16::iteration(padding,h);
+        }
+        return h;
+    }
+
+    QVector<Collision2> prepare2kCollisions(int k) {
+        QVector<Collision2> ret;
+
+        QByteArray h1 = H0();
+        for (int n = 1; n<=k; ++n) {
+
+            const int twokmn = (1 << (k-n)); // 2^(k-n)
+
+            // Collision between short and long blocks.
+            Collision2 x = findCollision2(h1,twokmn);
+
+            ret.append(x);
+
+            h1 = x.hOut;
+        }
+        return ret;
+    }
+
+    QByteArray makeLongBlock(const Collision2 & c)
+    {
+        QByteArray ret(c.padLenBlocks * MdHash16::BlockSizeBytes, m_padChar);
+        ret.append(c.input2);
+        return ret;
+    }
+private:
+    int m_cfCount;
+    const char m_padChar;
+};
+
+}
+
+void TestSet7_52::testChallenge53()
+{
+    using namespace Challenge53;
+    CollisionFinder2 finder;
+
+    const int k = 16;
+    const QVector<CollisionFinder2::Collision2> vec = finder.prepare2kCollisions(k);
+    const int twopk = (1 << k);
+
+    for (int i=0; i<vec.size(); ++i) {
+        CollisionFinder2::Collision2 c = vec.at(i);
+
+        qDebug() << "Collision" << i << c.hIn.toHex() << c.hOut.toHex();
+    }
+
+    const QByteArray longMessage = qossl::randomBytes(65536 * 16);
+
+    QMap< QByteArray, QList< int > > messageMap;
+    int dataIndex = 0;
+    int end = dataIndex + MdHash16::BlockSizeBytes;
+    QByteArray state = H0();
+    messageMap[state].push_back(0);
+    while (end <= longMessage.size()) {
+        state = MdHash16::iteration(longMessage.mid(dataIndex,MdHash16::BlockSizeBytes), state);
+        messageMap[state].push_back(end);
+        dataIndex = end;
+        end += MdHash16::BlockSizeBytes;
+    }
+
+    qDebug() << vec.back().hOut.toHex();
+    if (! messageMap.contains(vec.back().hOut)) {
+        qDebug() << "Not long enough!";
+        return;
+    }
+
+    // Get the byte offset of the last match
+    const CollisionFinder2::Collision2 & lastC( vec.back() );
+    const int iBridge = messageMap.value(lastC.hOut).back();
+    const int iBlock = iBridge / MdHash16::BlockSizeBytes;
+    QVERIFY( iBridge % MdHash16::BlockSizeBytes == 0);
+
+    if (iBlock < k) {
+        qDebug() << "Cannot bridge, block too small";
+        return;
+    }
+
+    if (iBlock > k + twopk - 1) {
+        qDebug() << "Cannot bridge, block too big";
+        return;
+    }
+
+    QByteArray forged;
+    // Build the bridge...
+    const int numExtra = iBlock - k;
+    for (int i=0; i<k; ++i) {
+        if ((numExtra & (1 << (k-i-1))) != 0 ) {
+            // Long block
+            forged.append(finder.makeLongBlock(vec.at(i)));
+        } else {
+            // Short block
+            forged.append(vec.at(i).input1);
+        }
+    }
+
+    QCOMPARE(forged.length(), iBridge);
+
+    forged.append(longMessage.mid(iBridge));
+
+    QCOMPARE(forged.length(), longMessage.length());
+
+    QCOMPARE(MdHash16::hash(forged).toHex(), MdHash16::hash(longMessage).toHex());
+
+    qDebug() << "Original hash:" << MdHash16::hash(longMessage).toHex();
+    qDebug() << "Forgery hash:" << MdHash16::hash(forged).toHex();
+
+    QVERIFY(forged != longMessage);
+}
+
+
