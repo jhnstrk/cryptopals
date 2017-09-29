@@ -2,7 +2,7 @@
 
 #include <QObject>
 
-class TestSet7_52: public QObject
+class TestSet7_52_53_54: public QObject
 {
     Q_OBJECT
 private slots:
@@ -15,4 +15,6 @@ private slots:
     // Kelsey and Schneier's Expandable Messages
     void testChallenge53();
 
+    // Kelsey and Kohno's Nostradamus Attack
+    void testChallenge54();
 };

@@ -1,4 +1,4 @@
-#include "testSet7_52.h"
+#include "testSet7_52_53_54.h"
 
 #include <bitsnbytes.h>
 #include <utils.h>
@@ -8,7 +8,7 @@
 
 #include "test.h"
 
-JDS_ADD_TEST(TestSet7_52)
+JDS_ADD_TEST(TestSet7_52_53_54)
 
 
 // Note: The AES-128 based hash below is crap.
@@ -28,6 +28,16 @@ namespace {
     class MdHashBase {
     public:
         static const int BlockSizeBytes = qossl::AesBlockSize;
+        // The final padding block, assuming the rest of the data is block-aligned.
+        static QByteArray finalBlock(int count) {
+            QByteArray block;
+            block.append((char)0x80);
+            block.append( QByteArray((BlockSizeBytes - 8) - block.size(),'\0'));
+
+            // Message length in bits
+            block.append( qossl::uint64Le(count * CHAR_BIT) );
+            return block;
+        }
     protected:
         MdHashBase() : m_count(0) {}
         virtual ~MdHashBase() {}
@@ -269,7 +279,7 @@ namespace {
 
 }
 
-void TestSet7_52::testChallenge52()
+void TestSet7_52_53_54::testChallenge52()
 {
     CollisionFinder cf;
 
@@ -432,7 +442,7 @@ private:
 
 }
 
-void TestSet7_52::testChallenge53()
+void TestSet7_52_53_54::testChallenge53()
 {
     using namespace Challenge53;
     CollisionFinder2 finder;
@@ -510,4 +520,221 @@ void TestSet7_52::testChallenge53()
     QVERIFY(forged != longMessage);
 }
 
+
+//=============================================================================
+namespace Challenge54 {
+
+    class CollisionTree{
+    public:
+        struct CollisionTreeNode {
+            CollisionTreeNode() {}
+            CollisionTreeNode(const QByteArray& hOut_,const QByteArray & col1, const QByteArray & col2) :
+                hOut(hOut_),
+                block1(col1),
+                block2(col2)
+            {}
+
+            QByteArray hOut;
+            QByteArray block1;
+            QByteArray block2;
+        };
+
+        CollisionTree() {}
+
+        void buildTree(int k){
+            // Grow the tree...
+            const int twopk = (1 << k);
+            addLeaves(twopk);
+            buildLayer0();
+            while(m_treeLayers.back().size() > 1) {
+                buildNextLayer();
+            }
+        }
+
+        bool isLeaf(const QByteArray & h) const
+        {
+            return m_leafMap.contains(h);
+        }
+
+        QByteArray outputState() const {
+            return this->m_treeLayers.back().back().hOut;
+        }
+
+        QByteArray padding(const QByteArray& hIn) const
+        {
+            int i = m_leafMap.value(hIn,-1);
+            if (i == -1) {
+                qWarning() << "Initial state is not a leaf of the tree";
+                return QByteArray();
+            }
+            QByteArray ret;
+            for (int j=0; j<m_treeLayers.size(); ++j)
+            {
+                const int iNext = i/2;
+                const CollisionTreeNode & node(m_treeLayers.at(j).at(iNext));
+                if ((i & 1) == 0) {
+                    ret.append(node.block1);
+                } else {
+                    ret.append(node.block2);
+                }
+                i = iNext;
+            }
+            return ret;
+        }
+
+        QByteArray leaf(int i) const {
+            return m_leaves.at(i);
+        }
+    private:
+        void addLeaves(const int n)
+        {
+            while (m_leaves.size() < n) {
+                QByteArray next = randomH();
+                if (!m_leaves.contains(next)) {
+                    m_leafMap[next] = m_leaves.size();
+                    m_leaves.push_back(next);
+                }
+            }
+        }
+
+        // Pair up hashes in current top layer to build next.
+        void buildLayer0(){
+            QList< CollisionTreeNode > layer0;
+            for (int i=0; i< this->m_leaves.size(); i+=2) {
+                const QByteArray h1 = m_leaves.at(i);
+                const QByteArray h2 = (i+1 < m_leaves.size()) ? m_leaves.at(i+1) : h1;
+                const CollisionTreeNode node = this->findCollision(h1,h2);
+                layer0.push_back(node);
+            }
+            m_treeLayers.clear();
+            m_treeLayers.push_back(layer0);
+        }
+
+        void buildNextLayer()
+        {
+            QList< CollisionTreeNode > layer;
+            QList< CollisionTreeNode > & pLayer( m_treeLayers.back() );
+            for (int i=0; i< pLayer.size(); i+=2) {
+                const QByteArray h1 = pLayer.at(i).hOut;
+                const QByteArray h2 = (i+1 < pLayer.size()) ? pLayer.at(i+1).hOut : h1;
+                const CollisionTreeNode node = this->findCollision(h1,h2);
+                layer.push_back(node);
+            }
+            m_treeLayers.push_back(layer);
+        }
+
+        // Given 2 input states find 2 blocks that make a collision.
+        CollisionTreeNode findCollision(const QByteArray& hIn1, const QByteArray& hIn2)
+        {
+            QHash< QByteArray ,QByteArray > tested1;
+            QHash< QByteArray ,QByteArray > tested2;
+            while(true) {
+                QByteArray sample = qossl::randomBytes(qossl::AesBlockSize);
+
+                const QByteArray hOut1 = MdHash16::iteration(sample,hIn1);
+                if (tested2.contains(hOut1)) {
+                    return CollisionTreeNode(hOut1, sample, tested2.value(hOut1));
+                } else {
+                    tested1[hOut1] = sample;
+                }
+
+                const QByteArray hOut2 = MdHash16::iteration(sample,hIn2);
+                if (tested1.contains(hOut2)) {
+                    return CollisionTreeNode(hOut2, tested1.value(hOut2), sample);
+                } else {
+                    tested2[hOut2] = sample;
+                }
+            }
+        }
+
+        // Get a new random input state
+        QByteArray randomH() const
+        {
+            return qossl::randomBytes(m_stateLen);
+        }
+
+        static const int m_stateLen = 2;
+
+        QMap< QByteArray, int > m_leafMap;  // Input states
+        QList< QByteArray > m_leaves;
+        QList< QList< CollisionTreeNode > > m_treeLayers;
+    };
+}
+void TestSet7_52_53_54::testChallenge54()
+{
+    const int k = 12;
+
+    using namespace Challenge54;
+
+    qDebug() << "Building collision tree";
+    CollisionTree tree;
+    tree.buildTree(k);
+
+    const int expectedPaddingSize = k * MdHash16::BlockSizeBytes;
+
+    for (int i=0; i<100; ++i) {
+        const QByteArray leaf = tree.leaf(i);
+        QVERIFY(tree.isLeaf(leaf));
+        const QByteArray padding = tree.padding(leaf);
+        QCOMPARE(padding.size(), expectedPaddingSize);
+    }
+
+    // Make my prediction...
+    const int count =
+            (120000/MdHash16::BlockSizeBytes) * MdHash16::BlockSizeBytes  // Content, rounded to block.
+            + MdHash16::BlockSizeBytes  // Glue block.
+            + expectedPaddingSize;      // Traversing the tree
+    const QByteArray hOut = tree.outputState();
+    const QByteArray finalBlock = MdHashBase::finalBlock(count);
+    const QByteArray prediction = MdHash16::iteration(finalBlock,hOut);
+
+    qDebug() << "Expected message length:" << count;
+    qDebug() << "My prediction has the following hash:" << prediction.toHex();
+
+    // Now the real results come in...
+    QFile file(":/qossl_test_resources/rsc/set7/mlb_2016.txt");
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray actual = QByteArray::fromBase64(file.readAll());
+    file.close();
+
+    // Pad to the correct size, minus one block.
+    int glueLen = count - actual.size() - expectedPaddingSize - MdHash16::BlockSizeBytes;
+    const QByteArray glue1 = QByteArray(glueLen, ' ');
+    // Hash the actual results + the glue.
+    const QByteArray leadingBit( actual + glue1 );
+    QCOMPARE(leadingBit.size() % MdHash16::BlockSizeBytes, 0);
+
+    // Compute the intermediate hash.
+    QByteArray h = H0();
+    for (int i=0; i<leadingBit.size(); i+=MdHash16::BlockSizeBytes) {
+        h = MdHash16::iteration(leadingBit.mid(i,MdHash16::BlockSizeBytes),h);
+    }
+
+    // Find a glue block to attach to the tree.
+    const QByteArray hGlue = h; // Intermediate hash.
+
+    QByteArray block = QByteArray(MdHash16::BlockSizeBytes, ' ');
+    while(true) {
+        QByteArray testH = MdHash16::iteration(block,h);
+        if (tree.isLeaf(testH)) {
+            h = testH;
+            break;
+        }
+        block = qossl::randomBytes(MdHash16::BlockSizeBytes/2).toHex();
+    }
+
+    const QByteArray theRest = block + tree.padding(h);
+
+    const QByteArray proof = actual + glue1 + theRest;
+
+    qDebug() << "Actual message size:" << proof.size();
+
+    QCOMPARE(proof.size(), count);
+
+    qDebug() << "The hash of the results data is:" << MdHash16::hash(proof).toHex();
+
+    // Verify that the 'proof' message has the correct hash.
+    QCOMPARE( MdHash16::hash(proof).toHex(), prediction.toHex());
+
+}
 
