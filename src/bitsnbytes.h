@@ -28,6 +28,9 @@ inline quint32 uint32_from_le(const unsigned char * p)
 inline quint32 leftrotate(quint32 v, unsigned int n){
     return (v << n) | (v >> (32-n));
 }
+inline quint32 rightrotate(quint32 v, unsigned int n){
+    return (v >> n) | (v << (32-n));
+}
 
 //! The byte representation of unsigned 64-bit int as Big-Endian.
 inline QByteArray uint64Be( const quint64 v)
@@ -84,4 +87,21 @@ inline QByteArray uint32Le( const quint32 v)
     pdata[3] = static_cast<char>((v >> 24) & 0xFF);
     return ret;
 }
+
+//! test bit, return true if it is 1.
+inline bool isBitSet(quint32 value, unsigned int pos)
+{
+    return ((value >> pos) & 1) != 0;
+}
+
+//! set or clear bit at given position,
+inline quint32 setBit(quint32 value, unsigned int pos, bool isSet)
+{
+    if (isSet) {
+        return value | ( 1 << pos );
+    } else {
+        return value & (~quint32(1 << pos));
+    }
+}
+
 }
