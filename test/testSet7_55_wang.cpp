@@ -200,10 +200,10 @@ namespace Wang {
 }
 
 class WangAttack {
-    HackWord a0,a1,a2,a3,a4,a5;
-    HackWord b0,b1,b2,b3,b4,b5;
-    HackWord c0,c1,c2,c3,c4,c5;
-    HackWord d0,d1,d2,d3,d4,d5;
+    HackWord a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10;
+    HackWord b0,b1,b2,b3,b4,b5,b6,b7,b8,b9,b10;
+    HackWord c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10;
+    HackWord d0,d1,d2,d3,d4,d5,d6,d7,d8,d9,d10;
 
 public:
     WangAttack() : a0(A0),b0(B0),c0(C0),d0(D0) {}
@@ -213,9 +213,13 @@ public:
     void checkM(const QVector<quint32> &m);
 protected:
 
-    void applyTable1_a(QVector<quint32> & m, HackWord & w, const int i,  bool desired);
-    void applyTable1_d(QVector<quint32> & m, HackWord & w, const int i,  bool desired);
-    void applyTable2(  QVector<quint32> & m, HackWord & w, const int i,  bool desired);
+    void applyRound1Corrections(QVector<quint32> & m);
+    void applyRound2Corrections(QVector<quint32> & m);
+
+    //! Return true if a change was made.
+    bool applyTable1_a(QVector<quint32> & m, HackWord & w, const int i,  int desired);
+    bool applyTable1_d(QVector<quint32> & m, HackWord & w, const int i,  int desired);
+    bool applyTable2(  QVector<quint32> & m, HackWord & w, const int i,  bool desired);
 
 };
 
@@ -240,6 +244,19 @@ void WangAttack::checkM(const QVector<quint32> &m)
     a5 = GG(a4,b4,c4,d4, m.at( 0),3);
     d5 = GG(d4,a5,b4,c4, m.at( 4),5);
     c5 = GG(c4,d5,a5,b4, m.at( 8),9);
+    b5 = GG(b4,c5,d5,a5, m.at(12),13);
+    a6 = GG(a5,b5,c5,d5, m.at( 1),3);
+    d6 = GG(d5,a6,b5,c5, m.at( 5),5);
+    c6 = GG(c5,d6,a6,b5, m.at( 9),9);
+    b6 = GG(b5,c6,d6,a6, m.at(13),13);
+    a7 = GG(a6,b6,c6,d6, m.at( 2),3);
+    d7 = GG(d6,a7,b6,c6, m.at( 6),5);
+    c7 = GG(c6,d7,a7,b6, m.at(10),9);
+    b7 = GG(b6,c7,d7,a7, m.at(14),13);
+    a8 = GG(a7,b7,c7,d7, m.at( 3),3);
+    d8 = GG(d7,a8,b7,c7, m.at( 7),5);
+    c8 = GG(c7,d8,a8,b7, m.at(11),9);
+    b8 = GG(b7,c8,d8,a8, m.at(15),13);
 
     // Condition 1: a1[7] = b0[7]
     QCOMPARE((int)a1[7], (int)b0[7]);
@@ -369,32 +386,65 @@ void WangAttack::checkM(const QVector<quint32> &m)
     QCOMPARE((int)b4[29], 1);
     QCOMPARE((int)b4[30], 0);
 
-#if 0
     // Round 2...
     // Condition 17: a5,19 = c4,19, a5,26 = 1, a5,27 = 0, a5,29 = 1, a5,32 = 1
-    applyTable1_a(m,a5,19,c4[19]);
-    applyTable1_a(m,a5,26,true);
-    applyTable1_a(m,a5,27,false);
-    applyTable1_a(m,a5,29,true);
-    applyTable1_a(m,a5,32,true);
+    QCOMPARE((int)a5[19], (int)c4[19]);
+    QCOMPARE((int)a5[26], 1);
+    QCOMPARE((int)a5[27], 0);
+    QCOMPARE((int)a5[29], 1);
+    QCOMPARE((int)a5[32], 1);
 
     // Condition 18: d5,19 = a5,19, d5,26 = b4,26, d5,27 = b4,27, d5,29 = b4,29, d5,32 = b4,32
-    applyTable1_d(m,d5,19,a5[19]);
-    applyTable1_d(m,d5,26,b4[26]);
-    applyTable1_d(m,d5,27,b4[27]);
-    applyTable1_d(m,d5,29,b4[29]);
-    applyTable1_d(m,d5,32,b4[32]);
+    QCOMPARE((int)d5[19], (int)a5[19]);
+    QCOMPARE((int)d5[26], (int)b4[26]);
+    QCOMPARE((int)d5[27], (int)b4[27]);
+    QCOMPARE((int)d5[29], (int)b4[29]);
+    QCOMPARE((int)d5[32], (int)b4[32]);
 
     // Condition 19: c5,26 = d5,26, c5,27 = d5,27, c5,29 = d5,29, c5,30 = d5,30, c5,32 = d5,32
-    applyTable2(m,c5,26,d5[26]);
-    applyTable2(m,c5,27,d5[27]);
-    applyTable2(m,c5,29,d5[29]);
-    // Cannot apply table 2 to i=30.
-    applyTable2(m,c5,32,d5[32]);
+    QCOMPARE((int)c5[26], (int)d5[26]);
+    QCOMPARE((int)c5[27], (int)d5[27]);
+    QCOMPARE((int)c5[29], (int)d5[29]);
+    QCOMPARE((int)c5[30], (int)d5[30]);
+    QCOMPARE((int)c5[32], (int)d5[32]);
+
+    // Condition 20: b5,29 = c5,29, b5,30 = 1, b5,32 = 0
+    QCOMPARE((int)b5[29], (int)c5[29]);
+    QCOMPARE((int)b5[30], 1);
+    QCOMPARE((int)b5[32], 0);
+
+    // Condition 21: a6,29 = 1, a6,32 = 1
+    QCOMPARE((int)a6[29], 1);
+    QCOMPARE((int)a6[32], 1);
+
+    // Condition 22: d6,29 = b5,29
+    QCOMPARE((int)d6[29], (int)b5[29]);
+
+    // Condition 23: c6,29 = d6,29, c6,30 = d6,30 + 1, c6,32 = d6,32 + 1
+    QCOMPARE((int)c6[29], (int)d6[29]);
+    QCOMPARE((bool)c6[30], !(bool)d6[30]);
+    QCOMPARE((bool)c6[32], !(bool)d6[32]);
+#if 0
+    // Condition 24: b9,32 = 1
+    QCOMPARE((int)b9[32], 1);
+
+    // Condition 25: a10,32 = 1
+    QCOMPARE((int)a10[32], 1);
 #endif
 }
 
 void WangAttack::modifyM(QVector<quint32> &m)
+{
+    applyRound1Corrections(m);
+    applyRound2Corrections(m);
+    applyRound1Corrections(m);
+    applyRound2Corrections(m);
+    applyRound1Corrections(m);
+    applyRound2Corrections(m);
+    applyRound1Corrections(m);
+}
+
+void WangAttack::applyRound1Corrections(QVector<quint32> &m)
 {
     // Condition 1: a1[7] = b0[7]
     a1 = FF(a0,b0,c0,d0, m.at(0),3);
@@ -407,7 +457,7 @@ void WangAttack::modifyM(QVector<quint32> &m)
 
     // Condition 2: d1,7 = 0, d1,8 = a1,8, d1,11 = a1,11
     d1 = FF(d0,a1,b0,c0, m.at(1),7);
-    d1[ 7] = false;
+    d1[ 7] = 0;
     d1[ 8] = a1[8];
     d1[11] = a1[11];
     m[1] = invFF(d0,a1,b0,c0, d1,7);
@@ -558,17 +608,17 @@ void WangAttack::modifyM(QVector<quint32> &m)
     b4[29] = 1;
     b4[30] = 0;
     m[15] = invFF(b3,c4,d4,a4,b4,19);
-
+}
+void WangAttack::applyRound2Corrections(QVector<quint32> &m)
+{
     // Round 2...
     // Condition 17: a5,19 = c4,19, a5,26 = 1, a5,27 = 0, a5,29 = 1, a5,32 = 1
     a5 = GG(a4,b4,c4,d4, m.at(0),3);
     applyTable1_a(m,a5,19,c4[19]);
-    return;
-    applyTable1_a(m,a5,26,true);
-    applyTable1_a(m,a5,27,false);
-    applyTable1_a(m,a5,29,true);
-    applyTable1_a(m,a5,32,true);
-
+    applyTable1_a(m,a5,26,1);
+    applyTable1_a(m,a5,27,0);
+    applyTable1_a(m,a5,29,1);
+    applyTable1_a(m,a5,32,1);
 
     // Condition 18: d5,19 = a5,19, d5,26 = b4,26, d5,27 = b4,27, d5,29 = b4,29, d5,32 = b4,32
     d5 = GG(d4,a5,b4,c4, m.at(4),5);
@@ -589,23 +639,23 @@ void WangAttack::modifyM(QVector<quint32> &m)
 }
 
 // i is the 1-based bit position.
-void WangAttack::applyTable1_a(QVector<quint32> & m, HackWord & w, const int i,  bool desired)
+bool WangAttack::applyTable1_a(QVector<quint32> & m, HackWord & w, const int i,  int desired)
 {
     using namespace qossl;
     if (w[i] == desired) {
-        return;
+        return false;
     }
 
     if (i<5) {
         qWarning() << "Bad i";
-        return;
+        return false;
     }
 
     // Step 1
     if (desired) {
-        m[0] += (1<<(i - 1 - 4));
+        m[0] += (1<<(i - 4 - 1));
     } else {
-        m[0] -= (1<<(i - 1 - 4));
+        m[0] -= (1<<(i - 4 - 1));
     }
 
     HackWord a1x = a1;
@@ -619,18 +669,20 @@ void WangAttack::applyTable1_a(QVector<quint32> & m, HackWord & w, const int i, 
     a1 = a1x;
 
     w[i] = desired;
+    this->applyRound1Corrections(m);
+    return true;
 }
 
-void WangAttack::applyTable1_d(QVector<quint32> & m, HackWord & w, const int i,  bool desired)
+bool WangAttack::applyTable1_d(QVector<quint32> & m, HackWord & w, const int i,  int desired)
 {
     using namespace qossl;
     if (w[i] == desired) {
-        return;
+        return false;
     }
 
     if (i<5) {
         qWarning() << "Bad i";
-        return;
+        return false;
     }
 
     // Step 1
@@ -650,13 +702,15 @@ void WangAttack::applyTable1_d(QVector<quint32> & m, HackWord & w, const int i, 
 
     a2 = a2x;
     w[i] = desired;
+    this->applyRound1Corrections(m);
+    return true;
 }
 
-void WangAttack::applyTable2(QVector<quint32> & m, HackWord & w, const int i,  bool desired)
+bool WangAttack::applyTable2(QVector<quint32> & m, HackWord & w, const int i,  bool desired)
 {
     using namespace qossl;
     if (w[i] == desired) {
-        return;
+        return false;
     }
 
     m[5] = m[5] + (1 << (i-17));
@@ -676,6 +730,7 @@ void WangAttack::applyTable2(QVector<quint32> & m, HackWord & w, const int i,  b
     m[7] = invFF(b1,c2,d2,a2, b2,19);
 
     w[i] = desired;
+    return true;
 }
 
 
@@ -683,12 +738,34 @@ void TestSet7_55_wang::testChallenge55()
 {
     using namespace qossl;
 
+    // Check basic functions
+    QCOMPARE(toBytes(fromBytes(Wang::m1)), Wang::m1);
+    QCOMPARE(toBytes(fromBytes(Wang::m2)), Wang::m2);
+
     // Verify Wang's original collisions
     QCOMPARE(Md4::hash(Wang::m1).toHex(), Wang::h1star.toHex());
     QCOMPARE(Md4::hash(Wang::m1dash).toHex(), Wang::h1star.toHex());
     QCOMPARE(Md4::hash(Wang::m2).toHex(), Wang::h2star.toHex());
     QCOMPARE(Md4::hash(Wang::m2dash).toHex(), Wang::h2star.toHex());
 
+    // Check the M -> M' bit flipping is working.
+    const QVector<quint32> wangM1 = fromBytes(Wang::m1);
+    const QVector<quint32> wangM1dash = fromBytes(Wang::m1dash);
+    QCOMPARE(mPrimeFromM(wangM1), wangM1dash);
+
+    const QVector<quint32> wangM2 = fromBytes(Wang::m2);
+    const QVector<quint32> wangM2dash = fromBytes(Wang::m2dash);
+    QCOMPARE(mPrimeFromM(wangM2), wangM2dash);
+
+    // Do Wangs collisions fulfill the conditions?
+    {
+        WangAttack checker;
+        qDebug() << "Check M1";
+        checker.checkM(wangM1);
+        qDebug() << "Check M2";
+        checker.checkM(wangM2);
+        qDebug() << "Check Done";
+    }
 
     // Testing word hacking.
     {
